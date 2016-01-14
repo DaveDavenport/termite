@@ -818,12 +818,11 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
     const guint modifiers = event->state & gtk_accelerator_get_default_mod_mask();
 
     for ( int i = 0; i < NUM_KEYBINDINGS; i++) {
-        if ( (bindings[i].mode != info->select.mode || bindings[i].mode == vi_mode::all ) && 
+        if ( (bindings[i].mode != info->select.mode || bindings[i].mode == vi_mode::all ) &&
              (bindings[i].mod) == (modifiers) &&
              (bindings[i].key) == (event->keyval) ){
             switch(i){
                 case FULLSCREEN:
-                    printf("fullscreen\n");
                     info->fullscreen_toggle(info->window);
                     return TRUE;
                 case FIND_NEXT:
