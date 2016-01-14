@@ -141,6 +141,42 @@ struct draw_cb_info {
     gboolean filter_unmatched_urls;
 };
 
+enum {
+    FIND_NEXT,
+    FIND_PREVIOUS,
+    SEARCH_FORWARD,
+    SEARCH_REVERSE,
+    EXIT_MODE,
+    TOGGLE_VISUAL,
+    MOVE_BACKWARD_BLANK_WORD,
+    MOVE_FORWARD_BLANK_WORD,
+    NUM_KEYBINDINGS
+} keybinding_entries;
+
+typedef struct _keybinding_key {
+    unsigned int mod;
+    guint           key;
+}keybinding_key;
+
+keybinding_key bindings[NUM_KEYBINDINGS] = {
+    // FIND_NEXT
+    { 0, GDK_KEY_n},
+    // FIND_PREV
+    { 0, GDK_KEY_N},
+    // SEARCH_FORWARD
+    { 0, GDK_KEY_u},
+    // SEARCH_REVERSE
+    { 0, GDK_KEY_U},
+    // EXIT MODE
+    { GDK_CONTROL_MASK, GDK_KEY_bracketleft },
+    // TOGGLE VISUAL
+    { GDK_CONTROL_MASK, GDK_KEY_v },
+    // MOVE_BACKWARD_BLANK_WORD
+    { GDK_CONTROL_MASK, GDK_KEY_Left },
+    // MOVE_FORWARD_BLANK_WORD
+    { GDK_CONTROL_MASK, GDK_KEY_Right },
+};
+
 static void launch_browser(char *browser, char *url);
 static void window_title_cb(VteTerminal *vte, gboolean *dynamic_title);
 static gboolean window_state_cb(GtkWindow *window, GdkEventWindowState *event, keybind_info *info);
@@ -759,23 +795,46 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
         info->fullscreen_toggle(info->window);
 
     if (info->select.mode != vi_mode::insert) {
+        for ( int i = 0; i < NUM_KEYBINDINGS; i++) {
+            if ( (bindings[i].mod) == (modifiers&(GDK_CONTROL_MASK)) &&
+                 (bindings[i].key) == (event->keyval) ){
+                switch(i){
+                    case FIND_NEXT:
+                        vte_terminal_search_find_next(vte);
+                        vte_terminal_copy_primary(vte);
+                        break;
+                    case FIND_PREVIOUS:
+                        vte_terminal_search_find_previous(vte);
+                        vte_terminal_copy_primary(vte);
+                        break;
+                    case SEARCH_FORWARD:
+                        search(vte, url_regex, false);
+                        break;
+                    case SEARCH_REVERSE:
+                        search(vte, url_regex, true);
+                        break;
+                    case EXIT_MODE:
+                        exit_command_mode(vte, &info->select);
+                        gtk_widget_hide(info->panel.da);
+                        gtk_widget_hide(info->panel.panel);
+                        info->panel.url_list.clear();
+                        break;
+                    case TOGGLE_VISUAL:
+                        toggle_visual(vte, &info->select, vi_mode::visual_block);
+                        break;
+                    case MOVE_FORWARD_BLANK_WORD:
+                        move_backward_blank_word(vte, &info->select);
+                        break;
+                    case MOVE_BACKWARD_BLANK_WORD:
+                        move_forward_blank_word(vte, &info->select);
+                        break;
+                    default:
+                    break;
+                }
+            }
+        }
         if (modifiers == GDK_CONTROL_MASK) {
             switch (gdk_keyval_to_lower(event->keyval)) {
-                case GDK_KEY_bracketleft:
-                    exit_command_mode(vte, &info->select);
-                    gtk_widget_hide(info->panel.da);
-                    gtk_widget_hide(info->panel.panel);
-                    info->panel.url_list.clear();
-                    break;
-                case GDK_KEY_v:
-                    toggle_visual(vte, &info->select, vi_mode::visual_block);
-                    break;
-                case GDK_KEY_Left:
-                    move_backward_blank_word(vte, &info->select);
-                    break;
-                case GDK_KEY_Right:
-                    move_forward_blank_word(vte, &info->select);
-                    break;
                 case GDK_KEY_u:
                     move(vte, &info->select, 0, -(vte_terminal_get_row_count(vte) / 2));
                     break;
@@ -867,20 +926,6 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
                 break;
             case GDK_KEY_question:
                 overlay_show(&info->panel, overlay_mode::rsearch, vte);
-                break;
-            case GDK_KEY_n:
-                vte_terminal_search_find_next(vte);
-                vte_terminal_copy_primary(vte);
-                break;
-            case GDK_KEY_N:
-                vte_terminal_search_find_previous(vte);
-                vte_terminal_copy_primary(vte);
-                break;
-            case GDK_KEY_u:
-                search(vte, url_regex, false);
-                break;
-            case GDK_KEY_U:
-                search(vte, url_regex, true);
                 break;
             case GDK_KEY_o:
                 open_selection(info->config.browser, vte);
