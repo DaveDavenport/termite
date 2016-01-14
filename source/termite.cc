@@ -85,7 +85,8 @@ enum class vi_mode {
     command,
     visual,
     visual_line,
-    visual_block
+    visual_block,
+    all
 };
 
 struct select_info {
@@ -152,31 +153,54 @@ enum {
     TOGGLE_VISUAL,
     MOVE_BACKWARD_BLANK_WORD,
     MOVE_FORWARD_BLANK_WORD,
+    MOVE_HALF_UP,
+    MOVE_HALF_DOWN,
+    MOVE_FULL_UP,
+    MOVE_FULL_DOWN,
+    MOVE_WORD_BACK,
+    MOVE_WORK_FORWARD,
+    FULLSCREEN,
     NUM_KEYBINDINGS
 } keybinding_entries;
 
 typedef struct _keybinding_key {
+    vi_mode  mode;
+    const char *str;
     unsigned int mod;
     guint           key;
 }keybinding_key;
 
 keybinding_key bindings[NUM_KEYBINDINGS] = {
     // FIND_NEXT
-    { 0, GDK_KEY_n},
+    { vi_mode::insert, "find-next",     0, GDK_KEY_n},
     // FIND_PREV
-    { 0, GDK_KEY_N},
+    { vi_mode::insert, "find-previous", 0, GDK_KEY_N},
     // SEARCH_FORWARD
-    { 0, GDK_KEY_u},
+    { vi_mode::insert, "search-forward",0, GDK_KEY_u},
     // SEARCH_REVERSE
-    { 0, GDK_KEY_U},
+    { vi_mode::insert, "search-reverse", 0, GDK_KEY_U},
     // EXIT MODE
-    { GDK_CONTROL_MASK, GDK_KEY_bracketleft },
+    { vi_mode::insert, "exit-mode", GDK_CONTROL_MASK, GDK_KEY_bracketleft },
     // TOGGLE VISUAL
-    { GDK_CONTROL_MASK, GDK_KEY_v },
+    { vi_mode::insert, "toggle-visual", GDK_CONTROL_MASK, GDK_KEY_v },
     // MOVE_BACKWARD_BLANK_WORD
-    { GDK_CONTROL_MASK, GDK_KEY_Left },
+    { vi_mode::insert, "move-backword-black-word",GDK_CONTROL_MASK, GDK_KEY_Left },
     // MOVE_FORWARD_BLANK_WORD
-    { GDK_CONTROL_MASK, GDK_KEY_Right },
+    { vi_mode::insert, "move-forward-black-word", GDK_CONTROL_MASK, GDK_KEY_Right },
+    // MOVE HALF UP
+    { vi_mode::insert, "move-half-up", GDK_CONTROL_MASK, GDK_KEY_u },
+    // MOVE_ HALF DOWN
+    { vi_mode::insert, "move-half-down", GDK_CONTROL_MASK, GDK_KEY_d },
+    // MOVE FULL UP
+    { vi_mode::insert, "move-full-up", GDK_CONTROL_MASK, GDK_KEY_b},
+    // MOVE FULL DOWN
+    { vi_mode::insert, "move-full-up", GDK_CONTROL_MASK, GDK_KEY_f},
+    // MOVE_WORD_BACK
+    { vi_mode::insert, "move-word-back", GDK_SHIFT_MASK, GDK_KEY_Left},
+    // MOVE_WORD_FORWARD
+    { vi_mode::insert, "move-word-forward", GDK_SHIFT_MASK, GDK_KEY_Right},
+    // FULLSCREEN
+    { vi_mode::all , "fullscreen", 0 , GDK_KEY_F11 },
 };
 
 static void launch_browser(char *browser, char *url);
@@ -793,75 +817,68 @@ gboolean window_state_cb(GtkWindow *, GdkEventWindowState *event, keybind_info *
 gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) {
     const guint modifiers = event->state & gtk_accelerator_get_default_mod_mask();
 
-    if (info->config.fullscreen && event->keyval == GDK_KEY_F11)
-        info->fullscreen_toggle(info->window);
-
-    if (info->select.mode != vi_mode::insert) {
-        for ( int i = 0; i < NUM_KEYBINDINGS; i++) {
-            if ( (bindings[i].mod) == (modifiers&(GDK_CONTROL_MASK)) &&
-                 (bindings[i].key) == (event->keyval) ){
-                switch(i){
-                    case FIND_NEXT:
-                        vte_terminal_search_find_next(vte);
-                        vte_terminal_copy_primary(vte);
-                        break;
-                    case FIND_PREVIOUS:
-                        vte_terminal_search_find_previous(vte);
-                        vte_terminal_copy_primary(vte);
-                        break;
-                    case SEARCH_FORWARD:
-                        search(vte, url_regex, false);
-                        break;
-                    case SEARCH_REVERSE:
-                        search(vte, url_regex, true);
-                        break;
-                    case EXIT_MODE:
-                        exit_command_mode(vte, &info->select);
-                        gtk_widget_hide(info->panel.da);
-                        gtk_widget_hide(info->panel.panel);
-                        info->panel.url_list.clear();
-                        break;
-                    case TOGGLE_VISUAL:
-                        toggle_visual(vte, &info->select, vi_mode::visual_block);
-                        break;
-                    case MOVE_FORWARD_BLANK_WORD:
-                        move_backward_blank_word(vte, &info->select);
-                        break;
-                    case MOVE_BACKWARD_BLANK_WORD:
-                        move_forward_blank_word(vte, &info->select);
-                        break;
-                    default:
-                    break;
-                }
-            }
-        }
-        if (modifiers == GDK_CONTROL_MASK) {
-            switch (gdk_keyval_to_lower(event->keyval)) {
-                case GDK_KEY_u:
+    for ( int i = 0; i < NUM_KEYBINDINGS; i++) {
+        if ( (bindings[i].mode != info->select.mode || bindings[i].mode == vi_mode::all ) && 
+             (bindings[i].mod) == (modifiers) &&
+             (bindings[i].key) == (event->keyval) ){
+            switch(i){
+                case FULLSCREEN:
+                    printf("fullscreen\n");
+                    info->fullscreen_toggle(info->window);
+                    return TRUE;
+                case FIND_NEXT:
+                    vte_terminal_search_find_next(vte);
+                    vte_terminal_copy_primary(vte);
+                    return TRUE;
+                case FIND_PREVIOUS:
+                    vte_terminal_search_find_previous(vte);
+                    vte_terminal_copy_primary(vte);
+                    return TRUE;
+                case SEARCH_FORWARD:
+                    search(vte, url_regex, false);
+                    return TRUE;
+                case SEARCH_REVERSE:
+                    search(vte, url_regex, true);
+                    return TRUE;
+                case EXIT_MODE:
+                    exit_command_mode(vte, &info->select);
+                    gtk_widget_hide(info->panel.da);
+                    gtk_widget_hide(info->panel.panel);
+                    info->panel.url_list.clear();
+                    return TRUE;
+                case TOGGLE_VISUAL:
+                    toggle_visual(vte, &info->select, vi_mode::visual_block);
+                    return TRUE;
+                case MOVE_FORWARD_BLANK_WORD:
+                    move_backward_blank_word(vte, &info->select);
+                    return TRUE;
+                case MOVE_BACKWARD_BLANK_WORD:
+                    move_forward_blank_word(vte, &info->select);
+                    return TRUE;
+                case MOVE_HALF_UP:
                     move(vte, &info->select, 0, -(vte_terminal_get_row_count(vte) / 2));
-                    break;
-                case GDK_KEY_d:
+                    return TRUE;
+                case MOVE_HALF_DOWN:
                     move(vte, &info->select, 0, vte_terminal_get_row_count(vte) / 2);
-                    break;
-                case GDK_KEY_b:
+                    return TRUE;
+                case MOVE_FULL_UP:
                     move(vte, &info->select, 0, -(vte_terminal_get_row_count(vte) - 1));
-                    break;
-                case GDK_KEY_f:
+                    return TRUE;
+                case MOVE_FULL_DOWN:
                     move(vte, &info->select, 0, vte_terminal_get_row_count(vte) - 1);
-                    break;
-            }
-            return TRUE;
-        }
-        if (modifiers == GDK_SHIFT_MASK) {
-            switch (event->keyval) {
-                case GDK_KEY_Left:
+                    return TRUE;
+                case MOVE_WORD_BACK:
                     move_backward_word(vte, &info->select);
                     return TRUE;
-                case GDK_KEY_Right:
+                case MOVE_WORK_FORWARD:
                     move_forward_word(vte, &info->select);
                     return TRUE;
+                default:
+                    break;
             }
         }
+    }
+    if ( info->select.mode != vi_mode::insert) {
         switch (event->keyval) {
             case GDK_KEY_Escape:
             case GDK_KEY_q:
@@ -1489,6 +1506,22 @@ static void set_config(GtkWindow *window, VteTerminal *vte, config_info *info,
     }
 
     load_theme(window, vte, config, info->hints);
+
+    const guint modifiers = gtk_accelerator_get_default_mod_mask();
+    for(gsize k=0; k <  NUM_KEYBINDINGS; k++){
+        const char *key = bindings[k].str;
+        char *val = g_key_file_get_string ( config, "keybindings", key, NULL);
+        if(val){
+            guint kmod, kkey;
+            gtk_accelerator_parse(val, &kkey,  (GdkModifierType *)&kmod);
+            if ( !(kmod == 0 && kkey == 0) ){
+                bindings[k].mod = kmod&(modifiers);
+                bindings[k].key = kkey;
+            }
+            g_free(val);
+        }
+    }
+
 }/*}}}*/
 
 static void exit_with_status(VteTerminal *, int status) {
