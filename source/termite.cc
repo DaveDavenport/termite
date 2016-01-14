@@ -35,6 +35,8 @@
 #include <gdk/gdkx.h>
 #endif
 
+#include <config.h>
+
 #include "url_regex.hh"
 #include "util/clamp.hh"
 #include "util/maybe.hh"
@@ -1548,7 +1550,7 @@ int main(int argc, char **argv) {
     }
 
     if (version) {
-        g_print("termite %s\n", TERMITE_VERSION);
+        g_print("termite %s\n", PACKAGE_VERSION);
         return EXIT_SUCCESS;
     }
 
