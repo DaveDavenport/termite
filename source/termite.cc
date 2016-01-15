@@ -151,7 +151,7 @@ enum {
     SEARCH_FORWARD,
     SEARCH_REVERSE,
     EXIT_MODE,
-    TOGGLE_VISUAL,
+    TOGGLE_VISUAL_BLOCK,
     MOVE_BACKWARD_BLANK_WORD,
     MOVE_FORWARD_BLANK_WORD,
     MOVE_HALF_UP,
@@ -175,6 +175,14 @@ enum {
     MOVE_BACKWARD_BLANK_WORD2,
     MOVE_WORD_FORWARD2,
     MOVE_FORWARD_BLANK_WORD2,
+    CURSOR_COLUMN0,
+    CURSOR_COLUMN_MOVE_FIRST,
+    MOVE_EOL,
+    MOVE_FIRST_ROW,
+    MOVE_LAST_ROW,
+    TOGGLE_VISUAL,
+    TOGGLE_VISUAL_LINE,
+    COPY_CLIPBOARD,
     FULLSCREEN,
     NUM_KEYBINDINGS
 } keybinding_entries;
@@ -199,8 +207,8 @@ keybinding_key bindings[NUM_KEYBINDINGS] = {
     { ~vi_mode::insert, "search-reverse", 0, GDK_KEY_U},
     // EXIT MODE
     { ~vi_mode::insert, "exit-mode", GDK_CONTROL_MASK, GDK_KEY_bracketleft },
-    // TOGGLE VISUAL
-    { ~vi_mode::insert, "toggle-visual", GDK_CONTROL_MASK, GDK_KEY_v },
+    // TOGGLE_VISUAL_BLOCK
+    { ~vi_mode::insert, "toggle-visual-block", GDK_CONTROL_MASK, GDK_KEY_v },
     // MOVE_BACKWARD_BLANK_WORD
     { ~vi_mode::insert, "move-backword-black-word",GDK_CONTROL_MASK, GDK_KEY_Left },
     // MOVE_FORWARD_BLANK_WORD
@@ -245,6 +253,22 @@ keybinding_key bindings[NUM_KEYBINDINGS] = {
     { ~vi_mode::insert, "move-word-forward2", 0, GDK_KEY_w},
     //MOVE_FORWARD_BLANK_WORD2,
     { ~vi_mode::insert, "move-forward-blank-word2", 0, GDK_KEY_W},
+    //CURSOR_COLUMN0,
+    { ~vi_mode::insert, "cursor-column0", 0, GDK_KEY_0},
+    //CURSOR_COLUMN_MOVE_FIRST,
+    { ~vi_mode::insert, "cursor-column-move-first", 0, GDK_KEY_asciicircum},
+    //MOVE_EOL,
+    { ~vi_mode::insert, "move-eol", 0, GDK_KEY_dollar },
+    //MOVE_FIRST_ROW,
+    { ~vi_mode::insert, "move-first-row", 0, GDK_KEY_g },
+    //MOVE_LAST_ROW,
+    { ~vi_mode::insert, "move-last-row", 0, GDK_KEY_G },
+    // TOGGLE_VISUAL,
+    { ~vi_mode::insert, "toggle-visual", 0, GDK_KEY_v},
+    // TOGGLE_VISUAL_LINE,
+    { ~vi_mode::insert, "toggle-visual-line", 0, GDK_KEY_V},
+    // COPY_CLIPBOARD
+    { ~vi_mode::insert, "copy-clipboard", 0, GDK_KEY_y },
     // FULLSCREEN
     { vi_mode::all , "fullscreen", 0 , GDK_KEY_F11 }
 };
@@ -891,7 +915,7 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
                     gtk_widget_hide(info->panel.panel);
                     info->panel.url_list.clear();
                     return TRUE;
-                case TOGGLE_VISUAL:
+                case TOGGLE_VISUAL_BLOCK:
                     toggle_visual(vte, &info->select, vi_mode::visual_block);
                     return TRUE;
                 case MOVE_FORWARD_BLANK_WORD2:
@@ -945,6 +969,31 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
                 case MOVE_RIGHT2:
                     move(vte, &info->select, 1, 0);
                     return TRUE;
+                case  CURSOR_COLUMN0:
+                    set_cursor_column(vte, &info->select, 0);
+                    return TRUE;
+                case CURSOR_COLUMN_MOVE_FIRST:
+                    set_cursor_column(vte, &info->select, 0);
+                    move_first(vte, &info->select, std::not1(std::ref(g_unichar_isspace)));
+                    return TRUE;
+                case MOVE_EOL:
+                    move_to_eol(vte, &info->select);
+                    return TRUE;
+                case MOVE_FIRST_ROW:
+                    move_to_row_start(vte, &info->select, first_row(vte));
+                    return TRUE;
+                case MOVE_LAST_ROW:
+                    move_to_row_start(vte, &info->select, last_row(vte));
+                    return TRUE;
+                case TOGGLE_VISUAL:
+                    toggle_visual(vte, &info->select, vi_mode::visual);
+                    return TRUE;
+                case TOGGLE_VISUAL_LINE:
+                    toggle_visual(vte, &info->select, vi_mode::visual_line);
+                    return TRUE;
+                case COPY_CLIPBOARD:
+                    vte_terminal_copy_clipboard(vte);
+                    return TRUE;
                 default:
                     break;
             }
@@ -952,31 +1001,6 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
     }
     if ( info->select.mode != vi_mode::insert) {
         switch (event->keyval) {
-            case GDK_KEY_0:
-                set_cursor_column(vte, &info->select, 0);
-                break;
-            case GDK_KEY_asciicircum:
-                set_cursor_column(vte, &info->select, 0);
-                move_first(vte, &info->select, std::not1(std::ref(g_unichar_isspace)));
-                break;
-            case GDK_KEY_dollar:
-                move_to_eol(vte, &info->select);
-                break;
-            case GDK_KEY_g:
-                move_to_row_start(vte, &info->select, first_row(vte));
-                break;
-            case GDK_KEY_G:
-                move_to_row_start(vte, &info->select, last_row(vte));
-                break;
-            case GDK_KEY_v:
-                toggle_visual(vte, &info->select, vi_mode::visual);
-                break;
-            case GDK_KEY_V:
-                toggle_visual(vte, &info->select, vi_mode::visual_line);
-                break;
-            case GDK_KEY_y:
-                vte_terminal_copy_clipboard(vte);
-                break;
             case GDK_KEY_slash:
                 overlay_show(&info->panel, overlay_mode::search, vte);
                 break;
