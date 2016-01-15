@@ -1,4 +1,4 @@
-AC_INIT([notescc], [0.0.1], [qball@gmpclient.org])
+AC_INIT([termite], [0.0.1], [termite@termite.org])
 
 AC_CONFIG_SRCDIR([source/termite.cc])
 AC_CONFIG_HEADER([config.h])
