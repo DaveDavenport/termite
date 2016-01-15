@@ -1531,6 +1531,9 @@ static void set_config(GtkWindow *window, VteTerminal *vte, config_info *info,
         if(val){
             guint kmod, kkey;
             gtk_accelerator_parse(val, &kkey,  (GdkModifierType *)&kmod);
+            if((kmod&GDK_SHIFT_MASK) == GDK_SHIFT_MASK){
+                kkey = gdk_keyval_to_upper(kkey);
+            }
             if ( !(kmod == 0 && kkey == 0) ){
                 bindings[k].mod = kmod&(modifiers);
                 bindings[k].key = kkey;
