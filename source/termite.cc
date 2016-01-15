@@ -80,17 +80,18 @@ enum class overlay_mode {
     urlselect
 };
 
-enum class vi_mode {
-    insert,
-    command,
-    visual,
-    visual_line,
-    visual_block,
-    all
-};
+namespace vi_mode {
+    constexpr unsigned int insert    = 1,
+    command   = 2,
+    visual    = 4,
+    visual_line = 8,
+    visual_block = 16;
+    constexpr unsigned int all  = (insert|command|visual|visual_line|visual_block);
+}
+
 
 struct select_info {
-    vi_mode mode;
+    unsigned int mode;
     long begin_col;
     long begin_row;
     long origin_col;
@@ -159,12 +160,29 @@ enum {
     MOVE_FULL_DOWN,
     MOVE_WORD_BACK,
     MOVE_WORK_FORWARD,
+    // TODO: Add a way to combine double keybindings.
+    QUIT_COMMAND_MODE,
+    QUIT_COMMAND_MODE2,
+    MOVE_LEFT,
+    MOVE_LEFT2,
+    MOVE_DOWN,
+    MOVE_DOWN2,
+    MOVE_UP,
+    MOVE_UP2,
+    MOVE_RIGHT,
+    MOVE_RIGHT2,
+    MOVE_WORD_BACK2,
+    MOVE_BACKWARD_BLANK_WORD2,
+    MOVE_WORD_FORWARD2,
+    MOVE_FORWARD_BLANK_WORD2,
     FULLSCREEN,
     NUM_KEYBINDINGS
 } keybinding_entries;
 
 typedef struct _keybinding_key {
-    vi_mode  mode;
+    // To match previous code, it does a 'not'  match against this, except for all.
+    // TODO: fix this by using propper bitmask.
+    unsigned int mode;
     const char *str;
     unsigned int mod;
     guint           key;
@@ -172,35 +190,63 @@ typedef struct _keybinding_key {
 
 keybinding_key bindings[NUM_KEYBINDINGS] = {
     // FIND_NEXT
-    { vi_mode::insert, "find-next",     0, GDK_KEY_n},
+    { ~vi_mode::insert, "find-next",     0, GDK_KEY_n},
     // FIND_PREV
-    { vi_mode::insert, "find-previous", 0, GDK_KEY_N},
+    { ~vi_mode::insert, "find-previous", 0, GDK_KEY_N},
     // SEARCH_FORWARD
-    { vi_mode::insert, "search-forward",0, GDK_KEY_u},
+    { ~vi_mode::insert, "search-forward",0, GDK_KEY_u},
     // SEARCH_REVERSE
-    { vi_mode::insert, "search-reverse", 0, GDK_KEY_U},
+    { ~vi_mode::insert, "search-reverse", 0, GDK_KEY_U},
     // EXIT MODE
-    { vi_mode::insert, "exit-mode", GDK_CONTROL_MASK, GDK_KEY_bracketleft },
+    { ~vi_mode::insert, "exit-mode", GDK_CONTROL_MASK, GDK_KEY_bracketleft },
     // TOGGLE VISUAL
-    { vi_mode::insert, "toggle-visual", GDK_CONTROL_MASK, GDK_KEY_v },
+    { ~vi_mode::insert, "toggle-visual", GDK_CONTROL_MASK, GDK_KEY_v },
     // MOVE_BACKWARD_BLANK_WORD
-    { vi_mode::insert, "move-backword-black-word",GDK_CONTROL_MASK, GDK_KEY_Left },
+    { ~vi_mode::insert, "move-backword-black-word",GDK_CONTROL_MASK, GDK_KEY_Left },
     // MOVE_FORWARD_BLANK_WORD
-    { vi_mode::insert, "move-forward-black-word", GDK_CONTROL_MASK, GDK_KEY_Right },
+    { ~vi_mode::insert, "move-forward-black-word", GDK_CONTROL_MASK, GDK_KEY_Right },
     // MOVE HALF UP
-    { vi_mode::insert, "move-half-up", GDK_CONTROL_MASK, GDK_KEY_u },
+    { ~vi_mode::insert, "move-half-up", GDK_CONTROL_MASK, GDK_KEY_u },
     // MOVE_ HALF DOWN
-    { vi_mode::insert, "move-half-down", GDK_CONTROL_MASK, GDK_KEY_d },
+    { ~vi_mode::insert, "move-half-down", GDK_CONTROL_MASK, GDK_KEY_d },
     // MOVE FULL UP
-    { vi_mode::insert, "move-full-up", GDK_CONTROL_MASK, GDK_KEY_b},
+    { ~vi_mode::insert, "move-full-up", GDK_CONTROL_MASK, GDK_KEY_b},
     // MOVE FULL DOWN
-    { vi_mode::insert, "move-full-up", GDK_CONTROL_MASK, GDK_KEY_f},
+    { ~vi_mode::insert, "move-full-up", GDK_CONTROL_MASK, GDK_KEY_f},
     // MOVE_WORD_BACK
-    { vi_mode::insert, "move-word-back", GDK_SHIFT_MASK, GDK_KEY_Left},
+    { ~vi_mode::insert, "move-word-back", GDK_SHIFT_MASK, GDK_KEY_Left},
     // MOVE_WORD_FORWARD
-    { vi_mode::insert, "move-word-forward", GDK_SHIFT_MASK, GDK_KEY_Right},
+    { ~vi_mode::insert, "move-word-forward", GDK_SHIFT_MASK, GDK_KEY_Right},
+    //QUIT_COMMAND_MODE,
+    { ~vi_mode::insert, "quit-command-mode", 0, GDK_KEY_Escape},
+    //QUIT_COMMAND_MODE2,
+    { ~vi_mode::insert, "quit-command-mode2", 0, GDK_KEY_q},
+    //MOVE_LEFT,
+    { ~vi_mode::insert, "move-left", 0, GDK_KEY_Left},
+    //MOVE_LEFT2,
+    { ~vi_mode::insert, "move-left2", 0, GDK_KEY_h},
+    //MOVE_DOWN,
+    { ~vi_mode::insert, "move-down", 0, GDK_KEY_Down},
+    //MOVE_DOWN2,
+    { ~vi_mode::insert, "move-down2", 0, GDK_KEY_j},
+    //MOVE_UP,
+    { ~vi_mode::insert, "move-up", 0, GDK_KEY_Up},
+    //MOVE_UP2,
+    { ~vi_mode::insert, "move-up2", 0, GDK_KEY_k},
+    //MOVE_RIGHT,
+    { ~vi_mode::insert, "move-right", 0, GDK_KEY_Right},
+    //MOVE_RIGHT2,
+    { ~vi_mode::insert, "move-right2", 0, GDK_KEY_l},
+    //MOVE_WORD_BACK2,
+    { ~vi_mode::insert, "move-word-back2", 0, GDK_KEY_b},
+    //MOVE_BACKWARD_BLANK_WORD2,
+    { ~vi_mode::insert, "move-backward-blank-word2", 0, GDK_KEY_B},
+    //MOVE_WORD_FORWARD2,
+    { ~vi_mode::insert, "move-word-forward2", 0, GDK_KEY_w},
+    //MOVE_FORWARD_BLANK_WORD2,
+    { ~vi_mode::insert, "move-forward-blank-word2", 0, GDK_KEY_W},
     // FULLSCREEN
-    { vi_mode::all , "fullscreen", 0 , GDK_KEY_F11 },
+    { vi_mode::all , "fullscreen", 0 , GDK_KEY_F11 }
 };
 
 static void launch_browser(char *browser, char *url);
@@ -541,7 +587,7 @@ static void exit_command_mode(VteTerminal *vte, select_info *select) {
     select->mode = vi_mode::insert;
 }
 
-static void toggle_visual(VteTerminal *vte, select_info *select, vi_mode mode) {
+static void toggle_visual(VteTerminal *vte, select_info *select, unsigned int mode) {
     if (select->mode == mode) {
         select->mode = vi_mode::command;
     } else {
@@ -818,7 +864,7 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
     const guint modifiers = event->state & gtk_accelerator_get_default_mod_mask();
 
     for ( int i = 0; i < NUM_KEYBINDINGS; i++) {
-        if ( (bindings[i].mode != info->select.mode || bindings[i].mode == vi_mode::all ) &&
+        if ( ((bindings[i].mode&info->select.mode) != 0 ) &&
              (bindings[i].mod) == (modifiers) &&
              (bindings[i].key) == (event->keyval) ){
             switch(i){
@@ -848,9 +894,11 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
                 case TOGGLE_VISUAL:
                     toggle_visual(vte, &info->select, vi_mode::visual_block);
                     return TRUE;
+                case MOVE_FORWARD_BLANK_WORD2:
                 case MOVE_FORWARD_BLANK_WORD:
                     move_backward_blank_word(vte, &info->select);
                     return TRUE;
+                case MOVE_BACKWARD_BLANK_WORD2:
                 case MOVE_BACKWARD_BLANK_WORD:
                     move_forward_blank_word(vte, &info->select);
                     return TRUE;
@@ -866,11 +914,36 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
                 case MOVE_FULL_DOWN:
                     move(vte, &info->select, 0, vte_terminal_get_row_count(vte) - 1);
                     return TRUE;
+                case MOVE_WORD_BACK2:
                 case MOVE_WORD_BACK:
                     move_backward_word(vte, &info->select);
                     return TRUE;
+                case MOVE_WORD_FORWARD2:
                 case MOVE_WORK_FORWARD:
                     move_forward_word(vte, &info->select);
+                    return TRUE;
+                case QUIT_COMMAND_MODE:
+                case QUIT_COMMAND_MODE2:
+                    exit_command_mode(vte, &info->select);
+                    gtk_widget_hide(info->panel.da);
+                    gtk_widget_hide(info->panel.panel);
+                    info->panel.url_list.clear();
+                    return TRUE;
+                case MOVE_LEFT:
+                case MOVE_LEFT2:
+                    move(vte, &info->select, -1, 0);
+                    return TRUE;
+                case MOVE_DOWN:
+                case MOVE_DOWN2:
+                    move(vte, &info->select, 0, 1);
+                    return TRUE;
+                case MOVE_UP:
+                case MOVE_UP2:
+                    move(vte, &info->select, 0, -1);
+                    return TRUE;
+                case MOVE_RIGHT:
+                case MOVE_RIGHT2:
+                    move(vte, &info->select, 1, 0);
                     return TRUE;
                 default:
                     break;
@@ -879,41 +952,6 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
     }
     if ( info->select.mode != vi_mode::insert) {
         switch (event->keyval) {
-            case GDK_KEY_Escape:
-            case GDK_KEY_q:
-                exit_command_mode(vte, &info->select);
-                gtk_widget_hide(info->panel.da);
-                gtk_widget_hide(info->panel.panel);
-                info->panel.url_list.clear();
-                break;
-            case GDK_KEY_Left:
-            case GDK_KEY_h:
-                move(vte, &info->select, -1, 0);
-                break;
-            case GDK_KEY_Down:
-            case GDK_KEY_j:
-                move(vte, &info->select, 0, 1);
-                break;
-            case GDK_KEY_Up:
-            case GDK_KEY_k:
-                move(vte, &info->select, 0, -1);
-                break;
-            case GDK_KEY_Right:
-            case GDK_KEY_l:
-                move(vte, &info->select, 1, 0);
-                break;
-            case GDK_KEY_b:
-                move_backward_word(vte, &info->select);
-                break;
-            case GDK_KEY_B:
-                move_backward_blank_word(vte, &info->select);
-                break;
-            case GDK_KEY_w:
-                move_forward_word(vte, &info->select);
-                break;
-            case GDK_KEY_W:
-                move_forward_blank_word(vte, &info->select);
-                break;
             case GDK_KEY_0:
                 set_cursor_column(vte, &info->select, 0);
                 break;
