@@ -224,6 +224,7 @@ keybinding_key bindings[] = {
     { keybinding_cmd::TOGGLE_VISUAL,               ~vi_mode::insert, "toggle-visual",             "v",                           },
     { keybinding_cmd::TOGGLE_VISUAL_LINE,          ~vi_mode::insert, "toggle-visual-line",        "<Shift>V",                    },
     { keybinding_cmd::COPY_CLIPBOARD,              ~vi_mode::insert, "copy-clipboard",            "y,<Control><Shift>c",         },
+    { keybinding_cmd::COPY_CLIPBOARD,               vi_mode::insert, "copy-clipboard-insert",     "<Control><Shift>c",           },
     { keybinding_cmd::FULLSCREEN,                   vi_mode::all ,   "fullscreen",                "F11",                         },
     { keybinding_cmd::SEARCH,                      ~vi_mode::insert, "search",                    "slash",                       },
     { keybinding_cmd::RSEARCH,                     ~vi_mode::insert, "rsearch",                   "question",                    },
