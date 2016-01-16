@@ -230,7 +230,7 @@ keybinding_key bindings[] = {
     { keybinding_cmd::OPEN_SELECTION,              ~vi_mode::insert, "open-selection",            "o",                           },
     { keybinding_cmd::OPEN_SELECTION_EXIT_COMMAND, ~vi_mode::insert, "open-selection-exit-command","Return",                     },
     { keybinding_cmd::FIND_URL,                    ~vi_mode::insert, "find-url",                  "x",                           },
-    { keybinding_cmd::ZOOM_IN,                     ~vi_mode::insert, "zoom-in",                   "<Shift>plus",                 },
+    { keybinding_cmd::ZOOM_IN,                     ~vi_mode::insert, "zoom-in",                   "<Shift>plus,plus",            },
     { keybinding_cmd::ZOOM_OUT,                    ~vi_mode::insert, "zoom-out",                  "minus",                       },
     { keybinding_cmd::COMPLETE,                     vi_mode::all,    "complete",                  "<Control>Tab",                },
     { keybinding_cmd::LAUNCH_IN_DIRECTORY,          vi_mode::all,    "launch-in-directory",       "<Control><Shift>t",           },
