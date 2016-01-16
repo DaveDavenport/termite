@@ -249,7 +249,7 @@ keybinding_key bindings[] = {
     { keybinding_cmd::URL_HINT,                     vi_mode::all,    "url-hint",                  GDK_CONTROL_MASK|GDK_SHIFT_MASK, GDK_KEY_x},
     { keybinding_cmd::COPY_CLIPBOARD,               vi_mode::all,    "copy-clipboard2",           GDK_CONTROL_MASK|GDK_SHIFT_MASK, GDK_KEY_c},
     { keybinding_cmd::PASTE_CLIPBOARD,              vi_mode::all,    "paste-clipboard",           GDK_CONTROL_MASK|GDK_SHIFT_MASK, GDK_KEY_v},
-    { keybinding_cmd::RELOAD_CONFIG,                vi_mode::all,    "reload-config",             GDK_CONTROL_MASK|GDK_SHIFT_MASK, GDK_KEY_r}
+    { keybinding_cmd::RELOAD_CONFIG,                vi_mode::all,    "reload-config",             GDK_CONTROL_MASK|GDK_SHIFT_MASK, GDK_KEY_R}
 };
 size_t num_bindings = sizeof(bindings)/sizeof(keybinding_key);
 
