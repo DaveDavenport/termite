@@ -240,7 +240,7 @@ keybinding_key bindings[] = {
     { keybinding_cmd::OPEN_SELECTION,              ~vi_mode::insert, "open-selection",            0 , GDK_KEY_o},
     { keybinding_cmd::OPEN_SELECTION_EXIT_COMMAND, ~vi_mode::insert, "open-selection-exit-command",    0 , GDK_KEY_Return},
     { keybinding_cmd::FIND_URL,                    ~vi_mode::insert, "find-url",                  0 , GDK_KEY_x},
-    { keybinding_cmd::ZOOM_IN,                     ~vi_mode::insert, "zoom-in",                   0 , GDK_KEY_plus},
+    { keybinding_cmd::ZOOM_IN,                     ~vi_mode::insert, "zoom-in",                   GDK_SHIFT_MASK , GDK_KEY_plus},
     { keybinding_cmd::ZOOM_OUT,                    ~vi_mode::insert, "zoom-out",                  0 , GDK_KEY_minus},
     { keybinding_cmd::COMPLETE,                     vi_mode::all,    "complete",                  GDK_CONTROL_MASK, GDK_KEY_Tab},
     { keybinding_cmd::LAUNCH_IN_DIRECTORY,          vi_mode::all,    "launch-in-directory",       GDK_CONTROL_MASK|GDK_SHIFT_MASK, GDK_KEY_t},
