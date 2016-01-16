@@ -151,7 +151,7 @@ enum class keybinding_cmd {
     FIND_PREVIOUS,
     SEARCH_FORWARD,
     SEARCH_REVERSE,
-    EXIT_MODE,
+    EXIT_COMMAND_MODE,
     TOGGLE_VISUAL_BLOCK,
     MOVE_BACKWARD_BLANK_WORD,
     MOVE_FORWARD_BLANK_WORD,
@@ -161,7 +161,6 @@ enum class keybinding_cmd {
     MOVE_FULL_DOWN,
     MOVE_WORD_BACK,
     MOVE_WORD_FORWARD,
-    QUIT_COMMAND_MODE,
     MOVE_LEFT,
     MOVE_DOWN,
     MOVE_UP,
@@ -203,7 +202,7 @@ keybinding_key bindings[] = {
     { keybinding_cmd::FIND_PREVIOUS,               ~vi_mode::insert, "find-previous",             "<Shift>+N",                   },
     { keybinding_cmd::SEARCH_FORWARD,              ~vi_mode::insert, "search-forward",            "u",                           },
     { keybinding_cmd::SEARCH_REVERSE,              ~vi_mode::insert, "search-reverse",            "<Shift>U",                    },
-    { keybinding_cmd::EXIT_MODE,                   ~vi_mode::insert, "exit-mode",                 "<Control>bracketleft",        },
+    { keybinding_cmd::EXIT_COMMAND_MODE,           ~vi_mode::insert, "exit-mode",                 "<Control>bracketleft,Escape,q",        },
     { keybinding_cmd::TOGGLE_VISUAL_BLOCK,         ~vi_mode::insert, "toggle-visual-block",       "<Control>v",                  },
     { keybinding_cmd::MOVE_BACKWARD_BLANK_WORD,    ~vi_mode::insert, "move-backword-black-word",  "<Control>Left,<Shift>W",      },
     { keybinding_cmd::MOVE_FORWARD_BLANK_WORD,     ~vi_mode::insert, "move-forward-black-word",   "<Control>Right,<Shift>B",     },
@@ -213,7 +212,6 @@ keybinding_key bindings[] = {
     { keybinding_cmd::MOVE_FULL_DOWN,              ~vi_mode::insert, "move-full-up",              "<Control>f",                  },
     { keybinding_cmd::MOVE_WORD_BACK,              ~vi_mode::insert, "move-word-back",            "<Shift>Left,b",               },
     { keybinding_cmd::MOVE_WORD_FORWARD,           ~vi_mode::insert, "move-word-forward",         "<Shift>Right,w",              },
-    { keybinding_cmd::QUIT_COMMAND_MODE,           ~vi_mode::insert, "quit-command-mode",         "Escape,q",                    },
     { keybinding_cmd::MOVE_LEFT,                   ~vi_mode::insert, "move-left",                 "Left,h",                      },
     { keybinding_cmd::MOVE_DOWN,                   ~vi_mode::insert, "move-down",                 "Down,j",                      },
     { keybinding_cmd::MOVE_UP,                     ~vi_mode::insert, "move-up",                   "Up,k",                        },
@@ -881,7 +879,7 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
                         case keybinding_cmd::SEARCH_REVERSE:
                             search(vte, url_regex, true);
                             return TRUE;
-                        case keybinding_cmd::EXIT_MODE:
+                        case keybinding_cmd::EXIT_COMMAND_MODE:
                             exit_command_mode(vte, &info->select);
                             gtk_widget_hide(info->panel.da);
                             gtk_widget_hide(info->panel.panel);
@@ -913,12 +911,6 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
                             return TRUE;
                         case keybinding_cmd::MOVE_WORD_FORWARD:
                             move_forward_word(vte, &info->select);
-                            return TRUE;
-                        case keybinding_cmd::QUIT_COMMAND_MODE:
-                            exit_command_mode(vte, &info->select);
-                            gtk_widget_hide(info->panel.da);
-                            gtk_widget_hide(info->panel.panel);
-                            info->panel.url_list.clear();
                             return TRUE;
                         case keybinding_cmd::MOVE_LEFT:
                             move(vte, &info->select, -1, 0);
