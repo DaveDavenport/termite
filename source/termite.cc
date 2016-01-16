@@ -199,7 +199,7 @@ typedef struct _keybinding_key {
 
 keybinding_key bindings[] = {
     { keybinding_cmd::FIND_NEXT,                   ~vi_mode::insert, "find-next",                 "n",                           },
-    { keybinding_cmd::FIND_PREVIOUS,               ~vi_mode::insert, "find-previous",             "<Shift>+N",                   },
+    { keybinding_cmd::FIND_PREVIOUS,               ~vi_mode::insert, "find-previous",             "<Shift>N",                    },
     { keybinding_cmd::SEARCH_FORWARD,              ~vi_mode::insert, "search-forward",            "u",                           },
     { keybinding_cmd::SEARCH_REVERSE,              ~vi_mode::insert, "search-reverse",            "<Shift>U",                    },
     { keybinding_cmd::EXIT_COMMAND_MODE,           ~vi_mode::insert, "exit-mode",                 "<Control>bracketleft,Escape,q",        },
