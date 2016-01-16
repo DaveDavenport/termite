@@ -855,7 +855,7 @@ gboolean window_state_cb(GtkWindow *, GdkEventWindowState *event, keybind_info *
 gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) {
     const guint modifiers = event->state & gtk_accelerator_get_default_mod_mask();
 
-    for ( int i = 0; i < num_bindings; i++) {
+    for ( guint i = 0; i < num_bindings; i++) {
         if( (bindings[i].mode&info->select.mode) != 0 ){
             for ( auto &binding : bindings[i].keys ) {
                 guint mod = std::get<0>(binding);
@@ -1423,20 +1423,20 @@ static void parse_config_keybinding ( keybinding_key *bind, const char *value, g
     // Clear existing.
     bind->keys.clear();
     if(value) {
-        gchar **bindings = g_strsplit(value, ",", -1);
-        for( guint i =0; bindings != nullptr &&  bindings[i] != nullptr; i++)
+        gchar **str_bindings = g_strsplit(value, ",", -1);
+        for( guint i =0; str_bindings != nullptr &&  str_bindings[i] != nullptr; i++)
         {
-            gtk_accelerator_parse(bindings[i], &kkey,  (GdkModifierType *)&kmod);
+            gtk_accelerator_parse(str_bindings[i], &kkey,  (GdkModifierType *)&kmod);
             if((kmod&GDK_SHIFT_MASK) == GDK_SHIFT_MASK){
                 kkey = gdk_keyval_to_upper(kkey);
             }
             if ( !(kmod == 0 && kkey == 0) ){
                 bind->keys.push_back(std::make_tuple(kmod&modifiers, kkey));
             }else {
-                fprintf(stderr, "Failed to understand: %s\n", bindings[i]);
+                fprintf(stderr, "Failed to understand: %s\n", str_bindings[i]);
             }
         }
-        g_strfreev(bindings);
+        g_strfreev(str_bindings);
     }
 }
 
