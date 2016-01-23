@@ -26,6 +26,10 @@ PKG_PROG_PKG_CONFIG
 PKG_CHECK_MODULES([gtk],     [gtk+-3.0 >= 3.0])
 PKG_CHECK_MODULES([vte],     [vte-2.91])
 
+dnl ---------------------------------------------------------------------
+dnl Add extra compiler flags
+dnl ---------------------------------------------------------------------
+AC_SUBST([EXTRA_CFLAGS], ["-Wall -Wextra -Wparentheses -Winline -pedantic"])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

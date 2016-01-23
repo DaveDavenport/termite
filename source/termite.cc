@@ -88,6 +88,43 @@ namespace vi_mode {
     visual_line = 8,
     visual_block = 16;
     constexpr unsigned int all  = (insert|command|visual|visual_line|visual_block);
+    guint parse_mode ( const char *q )
+    {
+        guint retv = 0;
+        if ( q == NULL ) return 0;
+        gchar **modes = g_strsplit(q, "|",-1);
+        for ( unsigned int i = 0; modes != NULL && modes[i] != NULL ; i++ ) {
+            char *mode = modes[i];
+            if ( g_strcmp0(mode, "insert") == 0 ){
+                retv |= insert;
+            }
+            if ( g_strcmp0(mode, "!insert") == 0 ){
+                retv |= ~insert;
+            }
+            else if ( g_strcmp0(mode, "command") == 0 ){
+                retv |= command;
+            }
+            else if ( g_strcmp0(mode, "visual") == 0 ){
+                retv |= visual;
+            }
+            else if ( g_strcmp0(mode, "visual_line") == 0 ){
+                retv |= visual_line;
+            }
+            else if ( g_strcmp0(mode, "visual_block") == 0 ){
+                retv |= visual_block;
+            }
+            else if ( g_strcmp0(mode, "all") == 0 ) {
+                retv |= all;
+            }else {
+                fprintf(stderr, "Invalid mode entered.\n");
+            }
+        }
+        g_strfreev(modes);
+        if ( retv == 0 ){
+            fprintf(stderr, "No mode set for keybinding.\n");
+        }
+        return retv;
+    }
 }
 
 
@@ -190,54 +227,52 @@ enum class keybinding_cmd {
 
 typedef struct _keybinding_key {
     keybinding_cmd  cmd;
-    guint            mode;
     const char      *str;
     const char      *str_key;
-    std::list<std::tuple<guint, guint>> keys;
+    std::list<std::tuple<guint, guint,guint>> keys;
 }keybinding_key;
 
 keybinding_key bindings[] = {
-    { keybinding_cmd::FIND_NEXT,                   ~vi_mode::insert, "find-next",                 "n",                           },
-    { keybinding_cmd::FIND_PREVIOUS,               ~vi_mode::insert, "find-previous",             "<Shift>N",                    },
-    { keybinding_cmd::SEARCH_FORWARD,              ~vi_mode::insert, "search-forward",            "u",                           },
-    { keybinding_cmd::SEARCH_REVERSE,              ~vi_mode::insert, "search-reverse",            "<Shift>U",                    },
-    { keybinding_cmd::EXIT_COMMAND_MODE,           ~vi_mode::insert, "exit-mode",                 "<Control>bracketleft,Escape,q",        },
-    { keybinding_cmd::TOGGLE_VISUAL_BLOCK,         ~vi_mode::insert, "toggle-visual-block",       "<Control>v",                  },
-    { keybinding_cmd::MOVE_BACKWARD_BLANK_WORD,    ~vi_mode::insert, "move-backword-black-word",  "<Control>Left,<Shift>W",      },
-    { keybinding_cmd::MOVE_FORWARD_BLANK_WORD,     ~vi_mode::insert, "move-forward-black-word",   "<Control>Right,<Shift>B",     },
-    { keybinding_cmd::MOVE_HALF_UP,                ~vi_mode::insert, "move-half-up",              "<Control>u",                  },
-    { keybinding_cmd::MOVE_HALF_DOWN,              ~vi_mode::insert, "move-half-down",            "<Control>d",                  },
-    { keybinding_cmd::MOVE_FULL_UP,                ~vi_mode::insert, "move-full-up",              "<Control>b",                  },
-    { keybinding_cmd::MOVE_FULL_DOWN,              ~vi_mode::insert, "move-full-up",              "<Control>f",                  },
-    { keybinding_cmd::MOVE_WORD_BACK,              ~vi_mode::insert, "move-word-back",            "<Shift>Left,b",               },
-    { keybinding_cmd::MOVE_WORD_FORWARD,           ~vi_mode::insert, "move-word-forward",         "<Shift>Right,w",              },
-    { keybinding_cmd::MOVE_LEFT,                   ~vi_mode::insert, "move-left",                 "Left,h",                      },
-    { keybinding_cmd::MOVE_DOWN,                   ~vi_mode::insert, "move-down",                 "Down,j",                      },
-    { keybinding_cmd::MOVE_UP,                     ~vi_mode::insert, "move-up",                   "Up,k",                        },
-    { keybinding_cmd::MOVE_RIGHT,                  ~vi_mode::insert, "move-right",                "Right,l",                     },
-    { keybinding_cmd::CURSOR_COLUMN0,              ~vi_mode::insert, "cursor-column0",            "0",                           },
-    { keybinding_cmd::CURSOR_COLUMN_MOVE_FIRST,    ~vi_mode::insert, "cursor-column-move-first",  "asciicircum",                 },
-    { keybinding_cmd::MOVE_EOL,                    ~vi_mode::insert, "move-eol",                  "dollar",                      },
-    { keybinding_cmd::MOVE_FIRST_ROW,              ~vi_mode::insert, "move-first-row",            "g",                           },
-    { keybinding_cmd::MOVE_LAST_ROW,               ~vi_mode::insert, "move-last-row",             "G",                           },
-    { keybinding_cmd::TOGGLE_VISUAL,               ~vi_mode::insert, "toggle-visual",             "v",                           },
-    { keybinding_cmd::TOGGLE_VISUAL_LINE,          ~vi_mode::insert, "toggle-visual-line",        "<Shift>V",                    },
-    { keybinding_cmd::COPY_CLIPBOARD,              ~vi_mode::insert, "copy-clipboard",            "y,<Control><Shift>c",         },
-    { keybinding_cmd::COPY_CLIPBOARD,               vi_mode::insert, "copy-clipboard-insert",     "<Control><Shift>c",           },
-    { keybinding_cmd::FULLSCREEN,                   vi_mode::all ,   "fullscreen",                "F11",                         },
-    { keybinding_cmd::SEARCH,                      ~vi_mode::insert, "search",                    "slash",                       },
-    { keybinding_cmd::RSEARCH,                     ~vi_mode::insert, "rsearch",                   "question",                    },
-    { keybinding_cmd::OPEN_SELECTION,              ~vi_mode::insert, "open-selection",            "o",                           },
-    { keybinding_cmd::OPEN_SELECTION_EXIT_COMMAND, ~vi_mode::insert, "open-selection-exit-command","Return",                     },
-    { keybinding_cmd::FIND_URL,                    ~vi_mode::insert, "find-url",                  "x",                           },
-    { keybinding_cmd::ZOOM_IN,                     ~vi_mode::insert, "zoom-in",                   "<Shift>plus,plus",            },
-    { keybinding_cmd::ZOOM_OUT,                    ~vi_mode::insert, "zoom-out",                  "minus",                       },
-    { keybinding_cmd::COMPLETE,                     vi_mode::all,    "complete",                  "<Control>Tab",                },
-    { keybinding_cmd::LAUNCH_IN_DIRECTORY,          vi_mode::all,    "launch-in-directory",       "<Control><Shift>t",           },
-    { keybinding_cmd::COMMAND_MODE,                 vi_mode::all,    "command-mode",              "<Control><Shift>space,<Control><Shift>nobreakspace",},
-    { keybinding_cmd::URL_HINT,                     vi_mode::all,    "url-hint",                  "<Control><Shift>x",           },
-    { keybinding_cmd::PASTE_CLIPBOARD,              vi_mode::all,    "paste-clipboard",           "<Control><Shift>v",           },
-    { keybinding_cmd::RELOAD_CONFIG,                vi_mode::all,    "reload-config",             "<Control><Shift>R"},
+    { keybinding_cmd::FIND_NEXT,                    "find-next",                 "n:!insert",                           },
+    { keybinding_cmd::FIND_PREVIOUS,                "find-previous",             "<Shift>N:!insert",                    },
+    { keybinding_cmd::SEARCH_FORWARD,               "search-forward",            "u:!insert",                           },
+    { keybinding_cmd::SEARCH_REVERSE,               "search-reverse",            "<Shift>U:!insert",                    },
+    { keybinding_cmd::EXIT_COMMAND_MODE,            "exit-mode",                 "<Control>bracketleft:!insert,Escape:!insert,q:!insert",        },
+    { keybinding_cmd::TOGGLE_VISUAL_BLOCK,          "toggle-visual-block",       "<Control>v:!insert",                  },
+    { keybinding_cmd::MOVE_BACKWARD_BLANK_WORD,     "move-backword-black-word",  "<Control>Left:!insert,<Shift>W:!insert",      },
+    { keybinding_cmd::MOVE_FORWARD_BLANK_WORD,      "move-forward-black-word",   "<Control>Right:!insert,<Shift>B:!insert",     },
+    { keybinding_cmd::MOVE_HALF_UP,                 "move-half-up",              "<Control>u:!insert",                  },
+    { keybinding_cmd::MOVE_HALF_DOWN,               "move-half-down",            "<Control>d:!insert",                  },
+    { keybinding_cmd::MOVE_FULL_UP,                 "move-full-up",              "<Control>b:!insert",                  },
+    { keybinding_cmd::MOVE_FULL_DOWN,               "move-full-up",              "<Control>f:!insert",                  },
+    { keybinding_cmd::MOVE_WORD_BACK,               "move-word-back",            "<Shift>Left:!insert,b:!insert",               },
+    { keybinding_cmd::MOVE_WORD_FORWARD,            "move-word-forward",         "<Shift>Right:!insert,w:!insert",              },
+    { keybinding_cmd::MOVE_LEFT,                    "move-left",                 "Left:!insert,h:!insert",                      },
+    { keybinding_cmd::MOVE_DOWN,                    "move-down",                 "Down:!insert,j:!insert",                      },
+    { keybinding_cmd::MOVE_UP,                      "move-up",                   "Up:!insert,k:!insert",                        },
+    { keybinding_cmd::MOVE_RIGHT,                   "move-right",                "Right:!insert,l:!insert",                     },
+    { keybinding_cmd::CURSOR_COLUMN0,               "cursor-column0",            "0:!insert",                           },
+    { keybinding_cmd::CURSOR_COLUMN_MOVE_FIRST,     "cursor-column-move-first",  "asciicircum:!insert",                 },
+    { keybinding_cmd::MOVE_EOL,                     "move-eol",                  "dollar:!insert",                      },
+    { keybinding_cmd::MOVE_FIRST_ROW,               "move-first-row",            "g:!insert",                           },
+    { keybinding_cmd::MOVE_LAST_ROW,                "move-last-row",             "G:!insert",                           },
+    { keybinding_cmd::TOGGLE_VISUAL,                "toggle-visual",             "v:!insert",                           },
+    { keybinding_cmd::TOGGLE_VISUAL_LINE,           "toggle-visual-line",        "<Shift>V:!insert",                    },
+    { keybinding_cmd::COPY_CLIPBOARD,               "copy-clipboard",            "y:!insert,<Control><Shift>c:all",         },
+    { keybinding_cmd::FULLSCREEN,                   "fullscreen",                "F11:all",                         },
+    { keybinding_cmd::SEARCH,                       "search",                    "slash:!insert",                       },
+    { keybinding_cmd::RSEARCH,                      "rsearch",                   "question:!insert",                    },
+    { keybinding_cmd::OPEN_SELECTION,               "open-selection",            "o:!insert",                           },
+    { keybinding_cmd::OPEN_SELECTION_EXIT_COMMAND,  "open-selection-exit-command","Return:!insert",                     },
+    { keybinding_cmd::FIND_URL,                     "find-url",                  "x:!insert",                           },
+    { keybinding_cmd::ZOOM_IN,                      "zoom-in",                   "<Shift>plus:!insert,plus:!insert",            },
+    { keybinding_cmd::ZOOM_OUT,                     "zoom-out",                  "minus:!insert",                       },
+    { keybinding_cmd::COMPLETE,                     "complete",                  "<Control>Tab:all",                },
+    { keybinding_cmd::LAUNCH_IN_DIRECTORY,          "launch-in-directory",       "<Control><Shift>t:all",           },
+    { keybinding_cmd::COMMAND_MODE,                 "command-mode",              "<Control><Shift>space:all,<Control><Shift>nobreakspace:all",},
+    { keybinding_cmd::URL_HINT,                     "url-hint",                  "<Control><Shift>x:all",           },
+    { keybinding_cmd::PASTE_CLIPBOARD,              "paste-clipboard",           "<Control><Shift>v:all",           },
+    { keybinding_cmd::RELOAD_CONFIG,                "reload-config",             "<Control><Shift>R:all"},
 };
 size_t num_bindings = sizeof(bindings)/sizeof(keybinding_key);
 
@@ -856,11 +891,12 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
     const guint modifiers = event->state & gtk_accelerator_get_default_mod_mask();
 
     for ( guint i = 0; i < num_bindings; i++) {
-        if( (bindings[i].mode&info->select.mode) != 0 ){
             for ( auto &binding : bindings[i].keys ) {
                 guint mod = std::get<0>(binding);
                 guint key = std::get<1>(binding);
-                if ( (mod) == (modifiers) && (key) == (event->keyval) ){
+                guint mode= std::get<2>(binding);
+                if( (mode&info->select.mode) != 0 ){
+                    if ( (mod) == (modifiers) && (key) == (event->keyval) ){
                     switch( bindings[i].cmd ) {
                         case keybinding_cmd::FULLSCREEN:
                             info->fullscreen_toggle(info->window);
@@ -1426,15 +1462,22 @@ static void parse_config_keybinding ( keybinding_key *bind, const char *value, g
         gchar **str_bindings = g_strsplit(value, ",", -1);
         for( guint i =0; str_bindings != nullptr &&  str_bindings[i] != nullptr; i++)
         {
-            gtk_accelerator_parse(str_bindings[i], &kkey,  (GdkModifierType *)&kmod);
-            if((kmod&GDK_SHIFT_MASK) == GDK_SHIFT_MASK){
-                kkey = gdk_keyval_to_upper(kkey);
+            gchar **sets = g_strsplit(str_bindings[i], ":", 2);
+            if ( sets && sets[0] != NULL && sets[1] != NULL ){
+                gtk_accelerator_parse(sets[0], &kkey,  (GdkModifierType *)&kmod);
+                if((kmod&GDK_SHIFT_MASK) == GDK_SHIFT_MASK){
+                    kkey = gdk_keyval_to_upper(kkey);
+                }
+                if ( !(kmod == 0 && kkey == 0) ){
+                    guint mode = vi_mode::parse_mode(sets[1]);
+                    bind->keys.push_back(std::make_tuple(kmod&modifiers, kkey,mode));
+                }else {
+                    fprintf(stderr, "Failed to understand: %s\n", sets[0]);
+                }
+            } else {
+                fprintf(stderr, "Insufficient parameters. '%s'\n",str_bindings[i]);
             }
-            if ( !(kmod == 0 && kkey == 0) ){
-                bind->keys.push_back(std::make_tuple(kmod&modifiers, kkey));
-            }else {
-                fprintf(stderr, "Failed to understand: %s\n", str_bindings[i]);
-            }
+            g_strfreev(sets);
         }
         g_strfreev(str_bindings);
     }
