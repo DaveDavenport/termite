@@ -29,7 +29,7 @@ PKG_CHECK_MODULES([vte],     [vte-2.91])
 dnl ---------------------------------------------------------------------
 dnl Add extra compiler flags
 dnl ---------------------------------------------------------------------
-AC_SUBST([EXTRA_CFLAGS], ["-Wall -Wextra -Wparentheses -Winline -pedantic"])
+AC_SUBST([EXTRA_CFLAGS], ["-Wall -Wextra -Wparentheses -Winline -pedantic -Wno-missing-field-initializers"])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

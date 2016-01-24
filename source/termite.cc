@@ -164,6 +164,7 @@ struct config_info {
     gboolean fullscreen;
     int tag;
     char *config_file;
+    gdouble default_font_scale;
 };
 
 struct keybind_info {
@@ -216,6 +217,7 @@ enum class keybinding_cmd {
     FIND_URL,
     ZOOM_IN,
     ZOOM_OUT,
+    ZOOM_RESET,
     COMPLETE,
     LAUNCH_IN_DIRECTORY,
     COMMAND_MODE,
@@ -266,7 +268,8 @@ keybinding_key bindings[] = {
     { keybinding_cmd::OPEN_SELECTION_EXIT_COMMAND,  "open-selection-exit-command","Return:!insert",                     },
     { keybinding_cmd::FIND_URL,                     "find-url",                  "x:!insert",                           },
     { keybinding_cmd::ZOOM_IN,                      "zoom-in",                   "<Shift>plus:!insert,plus:!insert",            },
-    { keybinding_cmd::ZOOM_OUT,                     "zoom-out",                  "minus:!insert",                       },
+    { keybinding_cmd::ZOOM_OUT,                     "zoom-out",                  "equal:!insert",                       },
+    { keybinding_cmd::ZOOM_RESET,                   "zoom-reset",                  "minus:!insert",                       },
     { keybinding_cmd::COMPLETE,                     "complete",                  "<Control>Tab:all",                },
     { keybinding_cmd::LAUNCH_IN_DIRECTORY,          "launch-in-directory",       "<Control><Shift>t:all",           },
     { keybinding_cmd::COMMAND_MODE,                 "command-mode",              "<Control><Shift>space:all,<Control><Shift>nobreakspace:all",},
@@ -857,6 +860,9 @@ void window_title_cb(VteTerminal *vte, gboolean *dynamic_title) {
                          title ? title : "termite");
 }
 
+static void set_absolute_font_scale ( VteTerminal *vte, gdouble scale ) {
+   vte_terminal_set_font_scale(vte, scale); 
+}
 static void increase_font_scale(VteTerminal *vte) {
     gdouble scale = vte_terminal_get_font_scale(vte);
 
@@ -1010,6 +1016,9 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
                             return TRUE;
                         case keybinding_cmd::ZOOM_OUT:
                             decrease_font_scale(vte);
+                            return TRUE;
+                        case keybinding_cmd::ZOOM_RESET:
+                            set_absolute_font_scale(vte, info->config.default_font_scale);
                             return TRUE;
                         case keybinding_cmd::COMPLETE:
                             overlay_show(&info->panel, overlay_mode::completion, vte);
@@ -1509,6 +1518,7 @@ static void set_config(GtkWindow *window, VteTerminal *vte, config_info *info,
     info->filter_unmatched_urls = cfg_bool("filter_unmatched_urls", TRUE);
     info->modify_other_keys = cfg_bool("modify_other_keys", FALSE);
     info->fullscreen = cfg_bool("fullscreen", TRUE);
+    info->default_font_scale = vte_terminal_get_font_scale(vte);
 
     g_free(info->browser);
     info->browser = nullptr;
