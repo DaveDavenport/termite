@@ -127,6 +127,10 @@ namespace vi_mode {
     }
 }
 
+struct mode_indicator {
+    GtkWidget *label;
+    struct config_info *config;
+};
 
 struct select_info {
     unsigned int mode;
@@ -134,6 +138,7 @@ struct select_info {
     long begin_row;
     long origin_col;
     long origin_row;
+    mode_indicator    mode_ind;
 };
 
 struct url_data {
@@ -150,6 +155,7 @@ struct search_panel_info {
     char *fulltext;
 };
 
+
 struct hint_info {
     PangoFontDescription *font;
     cairo_pattern_t *fg, *bg, *af, *ab, *border;
@@ -165,6 +171,7 @@ struct config_info {
     int tag;
     char *config_file;
     gdouble default_font_scale;
+    gboolean hide_overlay;
 };
 
 struct keybind_info {
@@ -218,6 +225,7 @@ enum class keybinding_cmd {
     ZOOM_IN,
     ZOOM_OUT,
     ZOOM_RESET,
+    TOGGLE_MODE_OVERLAY,
     COMPLETE,
     LAUNCH_IN_DIRECTORY,
     COMMAND_MODE,
@@ -241,6 +249,7 @@ keybinding_key bindings[] = {
     { keybinding_cmd::SEARCH_REVERSE,               "search-reverse",            "<Shift>U:!insert",                    },
     { keybinding_cmd::EXIT_COMMAND_MODE,            "exit-mode",                 "<Control>bracketleft:!insert,Escape:!insert,q:!insert",        },
     { keybinding_cmd::TOGGLE_VISUAL_BLOCK,          "toggle-visual-block",       "<Control>v:!insert",                  },
+    { keybinding_cmd::TOGGLE_MODE_OVERLAY,          "toggle-mode-overlay",       "<Control>o:!insert",                  },
     { keybinding_cmd::MOVE_BACKWARD_BLANK_WORD,     "move-backword-black-word",  "<Control>Left:!insert,<Shift>W:!insert",      },
     { keybinding_cmd::MOVE_FORWARD_BLANK_WORD,      "move-forward-black-word",   "<Control>Right:!insert,<Shift>B:!insert",     },
     { keybinding_cmd::MOVE_HALF_UP,                 "move-half-up",              "<Control>u:!insert",                  },
@@ -566,6 +575,29 @@ static gboolean draw_cb(const draw_cb_info *info, cairo_t *cr) {
 
 static void update_selection(VteTerminal *vte, const select_info *select) {
     vte_terminal_unselect_all(vte);
+    if ( select->mode == vi_mode::visual){
+        gtk_label_set_markup(GTK_LABEL(select->mode_ind.label),
+                             "<span weight='bold' background='green' foreground='white'> visual </span>");
+    }else if ( select->mode == vi_mode::visual_line){
+        gtk_label_set_markup(GTK_LABEL(select->mode_ind.label),
+                             "<span weight='bold' background='green' foreground='white'> visual line </span>");
+    } else if ( select->mode == vi_mode::visual_block){
+        gtk_label_set_markup(GTK_LABEL(select->mode_ind.label),
+                             "<span weight='bold' background='green' foreground='white'> visual block </span>");
+    } else if ( select->mode == vi_mode::insert){
+        gtk_label_set_markup(GTK_LABEL(select->mode_ind.label),
+                             "<span weight='bold' background='black' foreground='white'> insert </span>");
+    }
+    else if (select->mode == vi_mode::command) {
+        gtk_label_set_markup(GTK_LABEL(select->mode_ind.label),
+                             "<span weight='bold' background='black' foreground='white'> command </span>");
+    }
+
+    if ( select->mode_ind.config->hide_overlay ){
+        gtk_widget_hide(select->mode_ind.label);
+    }else {
+        gtk_widget_show(select->mode_ind.label);
+    }
 
     if (select->mode == vi_mode::command) {
         return;
@@ -615,6 +647,7 @@ static void exit_command_mode(VteTerminal *vte, select_info *select) {
     vte_terminal_connect_pty_read(vte);
     vte_terminal_unselect_all(vte);
     select->mode = vi_mode::insert;
+    gtk_widget_hide(select->mode_ind.label);
 }
 
 static void toggle_visual(VteTerminal *vte, select_info *select, unsigned int mode) {
@@ -929,6 +962,14 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
                             return TRUE;
                         case keybinding_cmd::TOGGLE_VISUAL_BLOCK:
                             toggle_visual(vte, &info->select, vi_mode::visual_block);
+                            return TRUE;
+                        case keybinding_cmd::TOGGLE_MODE_OVERLAY:
+                            info->config.hide_overlay= ! info->config.hide_overlay;
+                            if ( info->config.hide_overlay ){
+                                gtk_widget_hide(info->select.mode_ind.label);
+                            }else {
+                                gtk_widget_show(info->select.mode_ind.label);
+                            }
                             return TRUE;
                         case keybinding_cmd::MOVE_FORWARD_BLANK_WORD:
                             move_backward_blank_word(vte, &info->select);
@@ -1519,6 +1560,7 @@ static void set_config(GtkWindow *window, VteTerminal *vte, config_info *info,
     info->modify_other_keys = cfg_bool("modify_other_keys", FALSE);
     info->fullscreen = cfg_bool("fullscreen", TRUE);
     info->default_font_scale = vte_terminal_get_font_scale(vte);
+    info->hide_overlay = cfg_bool("hide_overlay", FALSE);
 
     g_free(info->browser);
     info->browser = nullptr;
@@ -1680,6 +1722,7 @@ int main(int argc, char **argv) {
 
     GtkWidget *panel_overlay = gtk_overlay_new();
     GtkWidget *hint_overlay = gtk_overlay_new();
+    GtkWidget *command_overlay = gtk_overlay_new();
 
     GtkWidget *vte_widget = vte_terminal_new();
     VteTerminal *vte = VTE_TERMINAL(vte_widget);
@@ -1713,11 +1756,17 @@ int main(int argc, char **argv) {
          overlay_mode::hidden,
          std::vector<url_data>(),
          nullptr},
-        {vi_mode::insert, 0, 0, 0, 0},
+        {vi_mode::insert, 0, 0, 0, 0,
+
+            {// Mode indicator
+                gtk_label_new(""),
+            }
+        },
         {{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0, 0, 0},
-         nullptr, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE, FALSE, -1, config_file},
+         nullptr, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE, FALSE, -1, config_file,1.0,FALSE},
         gtk_window_fullscreen
     };
+    info.select.mode_ind.config = &(info.config);
 
     load_config(GTK_WINDOW(window), vte, &info.config, geometry ? nullptr : &geometry);
 
@@ -1741,11 +1790,18 @@ int main(int argc, char **argv) {
     gtk_widget_set_margin_bottom ( GTK_WIDGET(info.panel.entry), 5);
     gtk_overlay_add_overlay(GTK_OVERLAY(panel_overlay), info.panel.entry);
 
+
+
     gtk_widget_set_halign(info.panel.entry, GTK_ALIGN_START);
     gtk_widget_set_valign(info.panel.entry, GTK_ALIGN_END);
 
+    gtk_widget_set_halign(info.select.mode_ind.label, GTK_ALIGN_END);
+    gtk_widget_set_valign(info.select.mode_ind.label, GTK_ALIGN_END);
+    gtk_overlay_add_overlay(GTK_OVERLAY(command_overlay), info.select.mode_ind.label);
+
     gtk_container_add(GTK_CONTAINER(panel_overlay), hint_overlay);
-    gtk_container_add(GTK_CONTAINER(hint_overlay), vte_widget);
+    gtk_container_add(GTK_CONTAINER(hint_overlay), command_overlay);
+    gtk_container_add(GTK_CONTAINER(command_overlay), vte_widget);
     gtk_container_add(GTK_CONTAINER(window), panel_overlay);
 
     if (!hold) {
