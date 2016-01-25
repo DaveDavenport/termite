@@ -125,6 +125,37 @@ namespace vi_mode {
         }
         return retv;
     }
+    gchar *to_string ( const guint mode )
+    {
+        int first =1;
+        GString *str = g_string_new("");
+        if ( mode&insert ){
+            g_string_append(str, "|insert"+first);
+            first = 0;
+        }
+        if ( mode&command ){
+            g_string_append(str, "|command"+first);
+            first = 0;
+        }
+        if ( mode&visual ){
+            g_string_append(str, "|visual"+first);
+            first = 0;
+        }
+        if ( mode&visual_line){
+            g_string_append(str, "|visual line"+first);
+            first = 0;
+        }
+        if ( mode&visual_block){
+            g_string_append(str, "|visual block"+first);
+            first = 0;
+        }
+        if ( mode == all ) {
+            g_string_assign(str, "all");
+        }
+        gchar *retv = str->str;
+        g_string_free(str, FALSE);
+        return retv;
+    }
 }
 
 struct mode_indicator {
@@ -277,8 +308,8 @@ keybinding_key bindings[] = {
     { keybinding_cmd::OPEN_SELECTION_EXIT_COMMAND,  "open-selection-exit-command","Return:!insert",                     },
     { keybinding_cmd::FIND_URL,                     "find-url",                  "x:!insert",                           },
     { keybinding_cmd::ZOOM_IN,                      "zoom-in",                   "<Shift>plus:!insert,plus:!insert",            },
-    { keybinding_cmd::ZOOM_OUT,                     "zoom-out",                  "equal:!insert",                       },
-    { keybinding_cmd::ZOOM_RESET,                   "zoom-reset",                  "minus:!insert",                       },
+    { keybinding_cmd::ZOOM_OUT,                     "zoom-out",                  "minus:!insert",                       },
+    { keybinding_cmd::ZOOM_RESET,                   "zoom-reset",                  "equal:!insert",                       },
     { keybinding_cmd::COMPLETE,                     "complete",                  "<Control>Tab:all",                },
     { keybinding_cmd::LAUNCH_IN_DIRECTORY,          "launch-in-directory",       "<Control><Shift>t:all",           },
     { keybinding_cmd::COMMAND_MODE,                 "command-mode",              "<Control><Shift>space:all,<Control><Shift>nobreakspace:all",},
@@ -575,23 +606,16 @@ static gboolean draw_cb(const draw_cb_info *info, cairo_t *cr) {
 
 static void update_selection(VteTerminal *vte, const select_info *select) {
     vte_terminal_unselect_all(vte);
-    if ( select->mode == vi_mode::visual){
-        gtk_label_set_markup(GTK_LABEL(select->mode_ind.label),
-                             "<span weight='bold' background='green' foreground='white'> visual </span>");
-    }else if ( select->mode == vi_mode::visual_line){
-        gtk_label_set_markup(GTK_LABEL(select->mode_ind.label),
-                             "<span weight='bold' background='green' foreground='white'> visual line </span>");
-    } else if ( select->mode == vi_mode::visual_block){
-        gtk_label_set_markup(GTK_LABEL(select->mode_ind.label),
-                             "<span weight='bold' background='green' foreground='white'> visual block </span>");
-    } else if ( select->mode == vi_mode::insert){
-        gtk_label_set_markup(GTK_LABEL(select->mode_ind.label),
-                             "<span weight='bold' background='black' foreground='white'> insert </span>");
-    }
-    else if (select->mode == vi_mode::command) {
-        gtk_label_set_markup(GTK_LABEL(select->mode_ind.label),
-                             "<span weight='bold' background='black' foreground='white'> command </span>");
-    }
+    const PangoFontDescription *pd = vte_terminal_get_font(vte);
+    gchar *font_str = pango_font_description_to_string(pd);
+    gchar *markup = g_markup_printf_escaped ( "<span weight='bold' background='%s' foreground='white' font='%s'> %s </span>",
+            select->mode == vi_mode::command ? "black":"green",
+            font_str,
+            vi_mode::to_string(select->mode)
+            );
+    gtk_label_set_markup(GTK_LABEL(select->mode_ind.label), markup);
+    g_free(markup);
+    g_free(font_str);
 
     if ( select->mode_ind.config->hide_overlay ){
         gtk_widget_hide(select->mode_ind.label);
