@@ -160,6 +160,8 @@ namespace vi_mode {
 
 struct mode_indicator {
     GtkWidget *label;
+    GtkWidget *msg_label;
+    guint msg_label_timeout;
     struct config_info *config;
 };
 
@@ -319,13 +321,13 @@ keybinding_key bindings[] = {
 };
 size_t num_bindings = sizeof(bindings)/sizeof(keybinding_key);
 
-static void launch_browser(char *browser, char *url);
+static void launch_browser(VteTerminal *vte, char *browser, char *url, mode_indicator *ind);
 static void window_title_cb(VteTerminal *vte, gboolean *dynamic_title);
 static gboolean window_state_cb(GtkWindow *window, GdkEventWindowState *event, keybind_info *info);
 static gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info);
 static gboolean entry_key_press_cb(GtkEntry *entry, GdkEventKey *event, keybind_info *info);
 static gboolean position_overlay_cb(GtkBin *overlay, GtkWidget *widget, GdkRectangle *alloc);
-static gboolean button_press_cb(VteTerminal *vte, GdkEventButton *event, const config_info *info);
+static gboolean button_press_cb(VteTerminal *vte, GdkEventButton *event, keybind_info *info);
 static void bell_cb(GtkWidget *vte, gboolean *urgent_on_bell);
 static gboolean focus_cb(GtkWindow *window);
 
@@ -425,10 +427,43 @@ static gboolean modify_key_feed(GdkEventKey *event, keybind_info *info,
     return FALSE;
 }
 
-void launch_browser(char *browser, char *url) {
+static gboolean hide_popup( gpointer data )
+{
+    mode_indicator *ind = (mode_indicator*)data;
+    ind->msg_label_timeout = 0;
+    gtk_widget_hide ( (GtkWidget*)ind->msg_label);
+    return G_SOURCE_REMOVE ;
+}
+
+static void show_popup( VteTerminal *vte, mode_indicator *ind, const char *msg )
+{
+    if (ind->msg_label_timeout > 0){
+        g_source_remove(ind->msg_label_timeout);
+        ind->msg_label_timeout = 0;
+    }
+    const PangoFontDescription *pd = vte_terminal_get_font(vte);
+    gchar *font_str = pango_font_description_to_string(pd);
+    gchar *mmsg = g_markup_printf_escaped (
+                   "<span foreground='white' background='red' weight='bold' font='%s'> %s </span>",
+                   font_str,
+                    msg);
+    g_free(font_str);
+    gtk_label_set_markup(GTK_LABEL(ind->msg_label), mmsg);
+    g_free(mmsg);
+
+    if(!ind->config->hide_overlay) {
+        gtk_widget_show(ind->msg_label);
+    }
+    ind->msg_label_timeout = g_timeout_add_seconds(1, hide_popup, ind);
+}
+
+void launch_browser(VteTerminal *vte, char *browser, char *url, mode_indicator *ind ) {
     char *browser_cmd[3] = {browser, url, nullptr};
     GError *error = nullptr;
 
+    gchar *str = g_markup_printf_escaped("Opening: '%s'", url);
+    show_popup(vte, ind, str);
+    g_free(str);
     if (!browser) {
         g_printerr("browser not set, can't open url\n");
         return;
@@ -442,6 +477,7 @@ void launch_browser(char *browser, char *url) {
     }
     g_spawn_close_pid(child_pid);
 }
+
 
 static void set_size_hints(GtkWindow *window, VteTerminal *vte) {
     static const GdkWindowHints wh = (GdkWindowHints)(GDK_HINT_RESIZE_INC | GDK_HINT_MIN_SIZE |
@@ -513,12 +549,12 @@ static void find_urls(VteTerminal *vte, search_panel_info *panel_info) {
     g_array_free(attributes, TRUE);
 }
 
-static void launch_url(char *browser, const char *text, search_panel_info *info) {
+static void launch_url(VteTerminal *vte, char *browser, const char *text, search_panel_info *info, mode_indicator *ind) {
     char *end;
     errno = 0;
     unsigned long id = strtoul(text, &end, 10);
     if (!errno && id && id <= info->url_list.size() && !*end) {
-        launch_browser(browser, info->url_list[id - 1].url.get());
+        launch_browser(vte, browser, info->url_list[id - 1].url.get(), ind);
     } else {
         g_printerr("url hint invalid: %s\n", text);
     }
@@ -619,8 +655,12 @@ static void update_selection(VteTerminal *vte, const select_info *select) {
 
     if ( select->mode_ind.config->hide_overlay ){
         gtk_widget_hide(select->mode_ind.label);
+        gtk_widget_hide(select->mode_ind.msg_label);
     }else {
         gtk_widget_show(select->mode_ind.label);
+        if(select->mode_ind.msg_label_timeout > 0 ) {
+            gtk_widget_show(select->mode_ind.msg_label);
+        }
     }
 
     if (select->mode == vi_mode::command) {
@@ -730,11 +770,11 @@ static void move_to_row_start(VteTerminal *vte, select_info *select, long row) {
     update_selection(vte, select);
 }
 
-static void open_selection(char *browser, VteTerminal *vte) {
+static void open_selection(char *browser, VteTerminal *vte, mode_indicator *ind) {
     if (browser) {
         auto selection = make_unique(vte_terminal_get_selection(vte), g_free);
         if (selection && *selection) {
-            launch_browser(browser, selection.get());
+            launch_browser(vte,browser, selection.get(), ind);
         }
     } else {
         g_printerr("no browser to open url\n");
@@ -991,8 +1031,12 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
                             info->config.hide_overlay= ! info->config.hide_overlay;
                             if ( info->config.hide_overlay ){
                                 gtk_widget_hide(info->select.mode_ind.label);
+                                gtk_widget_hide(info->select.mode_ind.msg_label);
                             }else {
                                 gtk_widget_show(info->select.mode_ind.label);
+                                if(info->select.mode_ind.msg_label_timeout > 0 ) {
+                                    gtk_widget_show(info->select.mode_ind.msg_label);
+                                }
                             }
                             return TRUE;
                         case keybinding_cmd::MOVE_FORWARD_BLANK_WORD:
@@ -1055,6 +1099,7 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
                             return TRUE;
                         case keybinding_cmd::COPY_CLIPBOARD:
                             vte_terminal_copy_clipboard(vte);
+                            show_popup(vte, &(info->select.mode_ind), "yank");
                             return TRUE;
                         case keybinding_cmd::SEARCH:
                             overlay_show(&info->panel, overlay_mode::search, vte);
@@ -1063,10 +1108,10 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
                             overlay_show(&info->panel, overlay_mode::rsearch, vte);
                             return TRUE;
                         case keybinding_cmd::OPEN_SELECTION:
-                            open_selection(info->config.browser, vte);
+                            open_selection(info->config.browser, vte, &(info->select.mode_ind));
                             return TRUE;
                         case keybinding_cmd::OPEN_SELECTION_EXIT_COMMAND:
-                            open_selection(info->config.browser, vte);
+                            open_selection(info->config.browser, vte, &(info->select.mode_ind));
                             exit_command_mode(vte, &info->select);
                             return TRUE;
                         case keybinding_cmd::FIND_URL:
@@ -1195,7 +1240,7 @@ gboolean entry_key_press_cb(GtkEntry *entry, GdkEventKey *event, keybind_info *i
 
                 if (url_dig == text_dig ||
                     textd > static_cast<size_t>(static_cast<double>(urld)/10)) {
-                    launch_url(info->config.browser, info->panel.fulltext, &info->panel);
+                    launch_url(info->vte,info->config.browser, info->panel.fulltext, &info->panel, &(info->select.mode_ind));
                     ret = TRUE;
                 } else {
                     gtk_widget_queue_draw(info->panel.da);
@@ -1229,7 +1274,7 @@ gboolean entry_key_press_cb(GtkEntry *entry, GdkEventKey *event, keybind_info *i
                     vte_terminal_feed_child(info->vte, text, -1);
                     break;
                 case overlay_mode::urlselect:
-                    launch_url(info->config.browser, text, &info->panel);
+                    launch_url(info->vte, info->config.browser, text, &info->panel, &(info->select.mode_ind));
                     break;
                 case overlay_mode::hidden:
                     break;
@@ -1269,14 +1314,14 @@ gboolean position_overlay_cb(GtkBin *overlay, GtkWidget *widget, GdkRectangle *a
     return TRUE;
 }
 
-gboolean button_press_cb(VteTerminal *vte, GdkEventButton *event, const config_info *info) {
-    if (info->clickable_url && event->type == GDK_BUTTON_PRESS) {
+gboolean button_press_cb(VteTerminal *vte, GdkEventButton *event, keybind_info *info) {
+    if (info->config.clickable_url && event->type == GDK_BUTTON_PRESS) {
         auto match = make_unique(check_match(vte, (int)event->x, (int)event->y), g_free);
         if (!match)
             return FALSE;
 
         if (event->button == 1) {
-            launch_browser(info->browser, match.get());
+            launch_browser(vte,info->config.browser, match.get(), &(info->select.mode_ind));
         } else if (event->button == 3) {
             GtkClipboard *clipboard = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
             gtk_clipboard_set_text(clipboard, match.get(), -1);
@@ -1792,6 +1837,9 @@ int main(int argc, char **argv) {
 
             {// Mode indicator
                 gtk_label_new(""),
+                gtk_label_new(""),
+                0,
+                NULL
             }
         },
         {{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0, 0, 0},
@@ -1829,7 +1877,12 @@ int main(int argc, char **argv) {
 
     gtk_widget_set_halign(info.select.mode_ind.label, GTK_ALIGN_END);
     gtk_widget_set_valign(info.select.mode_ind.label, GTK_ALIGN_END);
+    gtk_widget_set_halign(info.select.mode_ind.msg_label, GTK_ALIGN_CENTER);
+    gtk_widget_set_valign(info.select.mode_ind.msg_label, GTK_ALIGN_END);
     gtk_overlay_add_overlay(GTK_OVERLAY(command_overlay), info.select.mode_ind.label);
+    gtk_overlay_add_overlay(GTK_OVERLAY(command_overlay), info.select.mode_ind.msg_label);
+
+    gtk_widget_hide(info.select.mode_ind.msg_label);
 
     gtk_container_add(GTK_CONTAINER(panel_overlay), hint_overlay);
     gtk_container_add(GTK_CONTAINER(hint_overlay), command_overlay);
@@ -1843,7 +1896,7 @@ int main(int argc, char **argv) {
     g_signal_connect(vte, "key-press-event", G_CALLBACK(key_press_cb), &info);
     g_signal_connect(info.panel.entry, "key-press-event", G_CALLBACK(entry_key_press_cb), &info);
     g_signal_connect(panel_overlay, "get-child-position", G_CALLBACK(position_overlay_cb), nullptr);
-    g_signal_connect(vte, "button-press-event", G_CALLBACK(button_press_cb), &info.config);
+    g_signal_connect(vte, "button-press-event", G_CALLBACK(button_press_cb), &info);
     g_signal_connect(vte, "bell", G_CALLBACK(bell_cb), &info.config.urgent_on_bell);
     draw_cb_info draw_cb_info{vte, &info.panel, &info.config.hints, info.config.filter_unmatched_urls};
     g_signal_connect_swapped(info.panel.da, "draw", G_CALLBACK(draw_cb), &draw_cb_info);
