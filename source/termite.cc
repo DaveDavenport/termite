@@ -1496,37 +1496,6 @@ static void load_theme(GtkWindow *window, VteTerminal *vte, GKeyFile *config, hi
     hints.roundness = get_config_double(config, "hints", "roundness").get_value_or(1.5);
 }
 
-static void load_config(GtkWindow *window, VteTerminal *vte, config_info *info,
-                        char **geometry) {
-    const std::string default_path = "/termite/config";
-    GKeyFile *config = g_key_file_new();
-
-    gboolean loaded = FALSE;
-
-    if (info->config_file) {
-        loaded = g_key_file_load_from_file(config,
-                                           info->config_file,
-                                           G_KEY_FILE_NONE, nullptr);
-    }
-
-    if (!loaded) {
-        loaded = g_key_file_load_from_file(config,
-                                           (g_get_user_config_dir() + default_path).c_str(),
-                                           G_KEY_FILE_NONE, nullptr);
-    }
-
-    for (const char *const *dir = g_get_system_config_dirs();
-         !loaded && *dir; dir++) {
-        loaded = g_key_file_load_from_file(config, (*dir + default_path).c_str(),
-                                           G_KEY_FILE_NONE, nullptr);
-    }
-
-    if (loaded) {
-        set_config(window, vte, info, geometry, config);
-    }
-    g_key_file_free(config);
-}
-
 static void parse_config_keybinding ( keybinding_key *bind, const char *value, guint modifiers)
 {
     guint kmod, kkey;
@@ -1556,6 +1525,56 @@ static void parse_config_keybinding ( keybinding_key *bind, const char *value, g
         g_strfreev(str_bindings);
     }
 }
+static void load_keybindings ( GKeyFile *config )
+{
+    const guint modifiers = gtk_accelerator_get_default_mod_mask();
+    for(gsize k=0; k <  num_bindings; k++){
+        char *val = config?g_key_file_get_string ( config, "keybindings", bindings[k].str, NULL):NULL;
+        if(val){
+            parse_config_keybinding(&(bindings[k]), val, modifiers);
+            g_free(val);
+        }
+        else{
+            parse_config_keybinding(&(bindings[k]), bindings[k].str_key, modifiers);
+        }
+    }
+}
+
+static void load_config(GtkWindow *window, VteTerminal *vte, config_info *info,
+                        char **geometry) {
+    const std::string default_path = "/termite/config";
+    GKeyFile *config = g_key_file_new();
+
+    gboolean loaded = FALSE;
+
+    if (info->config_file) {
+        loaded = g_key_file_load_from_file(config,
+                                           info->config_file,
+                                           G_KEY_FILE_NONE, nullptr);
+    }
+
+    if (!loaded) {
+        loaded = g_key_file_load_from_file(config,
+                                           (g_get_user_config_dir() + default_path).c_str(),
+                                           G_KEY_FILE_NONE, nullptr);
+    }
+
+    for (const char *const *dir = g_get_system_config_dirs();
+         !loaded && *dir; dir++) {
+        loaded = g_key_file_load_from_file(config, (*dir + default_path).c_str(),
+                                           G_KEY_FILE_NONE, nullptr);
+    }
+
+    if (loaded) {
+        set_config(window, vte, info, geometry, config);
+    }
+    else {
+        // We do want to load the default set.
+        load_keybindings( NULL );
+    }
+    g_key_file_free(config);
+}
+
 
 static void set_config(GtkWindow *window, VteTerminal *vte, config_info *info,
                         char **geometry, GKeyFile *config) {
@@ -1657,18 +1676,7 @@ static void set_config(GtkWindow *window, VteTerminal *vte, config_info *info,
 
     load_theme(window, vte, config, info->hints);
 
-    const guint modifiers = gtk_accelerator_get_default_mod_mask();
-    for(gsize k=0; k <  num_bindings; k++){
-        char *val = g_key_file_get_string ( config, "keybindings", bindings[k].str, NULL);
-        if(val){
-            parse_config_keybinding(&(bindings[k]), val, modifiers);
-            g_free(val);
-        }
-        else{
-            parse_config_keybinding(&(bindings[k]), bindings[k].str_key, modifiers);
-        }
-    }
-
+    load_keybindings( config );
 }/*}}}*/
 
 static void exit_with_status(VteTerminal *, int status) {
