@@ -20,6 +20,7 @@
 #include <array>
 #include <cstdlib>
 #include <cstring>
+#include <cmath>
 #include <functional>
 #include <limits>
 #include <map>
@@ -28,7 +29,6 @@
 #include <vector>
 #include <set>
 #include <string>
-#include <math.h>
 
 #include <gtk/gtk.h>
 #include <vte/vte.h>
@@ -204,7 +204,7 @@ struct config_info {
     gboolean fullscreen;
     int tag;
     char *config_file;
-    gdouble default_font_scale;
+    gdouble font_scale;
     gboolean hide_overlay;
 };
 
@@ -336,11 +336,11 @@ static GtkTreeModel *create_completion_model(VteTerminal *vte);
 static void search(VteTerminal *vte, const char *pattern, bool reverse);
 static void overlay_show(search_panel_info *info, overlay_mode mode, VteTerminal *vte);
 static void get_vte_padding(VteTerminal *vte, int *left, int *top, int *right, int *bottom);
-static char *check_match(VteTerminal *vte, int event_x, int event_y);
+static char *check_match(VteTerminal *vte, GdkEventButton *event);
 static void load_config(GtkWindow *window, VteTerminal *vte, config_info *info,
-                        char **geometry);
+                        char **geometry, char **icon);
 static void set_config(GtkWindow *window, VteTerminal *vte, config_info *info,
-                        char **geometry, GKeyFile *config);
+                        char **geometry, char **icon, GKeyFile *config);
 static long first_row(VteTerminal *vte);
 
 static std::function<void ()> reload_config;
@@ -348,8 +348,10 @@ static std::function<void ()> reload_config;
 static void override_background_color(GtkWidget *widget, GdkRGBA *rgba) {
     GtkCssProvider *provider = gtk_css_provider_new();
 
-    char *css = g_strdup_printf("* { background-color: %s; }", gdk_rgba_to_string(rgba));
+    gchar *colorstr = gdk_rgba_to_string(rgba);
+    char *css = g_strdup_printf("* { background-color: %s; }", colorstr);
     gtk_css_provider_load_from_data(provider, css, -1, nullptr);
+    g_free(colorstr);
     g_free(css);
 
     gtk_style_context_add_provider(gtk_widget_get_style_context(widget),
@@ -744,7 +746,7 @@ static void update_scroll(VteTerminal *vte) {
     long cursor_row;
     vte_terminal_get_cursor_position(vte, nullptr, &cursor_row);
 
-    if (cursor_row < scroll_row) {
+    if ( (double)cursor_row < scroll_row) {
         gtk_adjustment_set_value(adjust, (double)cursor_row);
     } else if (cursor_row - n_rows >= (long)scroll_row) {
         gtk_adjustment_set_value(adjust, (double)(cursor_row - n_rows + 1));
@@ -757,12 +759,16 @@ static void move(VteTerminal *vte, select_info *select, long col, long row) {
     long cursor_col, cursor_row;
     vte_terminal_get_cursor_position(vte, &cursor_col, &cursor_row);
 
+    VteCursorBlinkMode mode = vte_terminal_get_cursor_blink_mode(vte);
+    vte_terminal_set_cursor_blink_mode(vte, VTE_CURSOR_BLINK_OFF);
+
     vte_terminal_set_cursor_position(vte,
                                      clamp(cursor_col + col, 0l, end_col),
                                      clamp(cursor_row + row, first_row(vte), last_row(vte)));
 
     update_scroll(vte);
     update_selection(vte, select);
+    vte_terminal_set_cursor_blink_mode(vte, mode);
 }
 
 static void move_to_row_start(VteTerminal *vte, select_info *select, long row) {
@@ -789,7 +795,7 @@ get_text_range(VteTerminal *vte, long start_row, long start_col, long end_row, l
 }
 
 static bool is_word_char(gunichar c) {
-    static const char *word_char_ascii_punct = "-,.;/?%&#:_=+@~";
+    static const char *word_char_ascii_punct = "-,./?%&#_=+@~";
     return g_unichar_isgraph(c) &&
            (g_unichar_isalnum(c) || (g_unichar_ispunct(c) &&
                                      (c >= 0x80 || strchr(word_char_ascii_punct, (int)c) != NULL)));
@@ -816,6 +822,7 @@ static void move_backward(VteTerminal *vte, select_info *select, F is_word) {
     bool in_word = false;
 
     for (long i = length - 2; i > 0; i--) {
+        cursor_col--;
         if (!is_word(codepoints[i - 1])) {
             if (in_word) {
                 break;
@@ -823,7 +830,6 @@ static void move_backward(VteTerminal *vte, select_info *select, F is_word) {
         } else {
             in_word = true;
         }
-        cursor_col--;
     }
     vte_terminal_set_cursor_position(vte, cursor_col, cursor_row);
     update_selection(vte, select);
@@ -958,9 +964,10 @@ void window_title_cb(VteTerminal *vte, gboolean *dynamic_title) {
                          title ? title : "termite");
 }
 
-static void set_absolute_font_scale ( VteTerminal *vte, gdouble scale ) {
-   vte_terminal_set_font_scale(vte, scale); 
+static void reset_font_scale(VteTerminal *vte, gdouble scale) {
+    vte_terminal_set_font_scale(vte, scale);
 }
+
 static void increase_font_scale(VteTerminal *vte) {
     gdouble scale = vte_terminal_get_font_scale(vte);
 
@@ -1129,7 +1136,7 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
                             decrease_font_scale(vte);
                             return TRUE;
                         case keybinding_cmd::ZOOM_RESET:
-                            set_absolute_font_scale(vte, info->config.default_font_scale);
+                            reset_font_scale (vte, info->config.font_scale);
                             return TRUE;
                         case keybinding_cmd::COMPLETE:
                             overlay_show(&info->panel, overlay_mode::completion, vte);
@@ -1275,7 +1282,7 @@ gboolean entry_key_press_cb(GtkEntry *entry, GdkEventKey *event, keybind_info *i
                     vte_terminal_feed_child(info->vte, text, -1);
                     break;
                 case overlay_mode::urlselect:
-                    launch_url(info->vte, info->config.browser, text, &info->panel, &(info->select.mode_ind));
+	                    launch_url(info->vte, info->config.browser, text, &info->panel, &(info->select.mode_ind));
                     break;
                 case overlay_mode::hidden:
                     break;
@@ -1307,7 +1314,7 @@ gboolean position_overlay_cb(GtkBin *overlay, GtkWidget *widget, GdkRectangle *a
     GtkRequisition req;
     gtk_widget_get_preferred_size(widget, nullptr, &req);
 
-    alloc->x = width - req.width - 40;
+    alloc->x = width - req.width - 40;	
     alloc->y = 0;
     alloc->width  = std::min(width, req.width);
     alloc->height = std::min(height, req.height);
@@ -1317,7 +1324,7 @@ gboolean position_overlay_cb(GtkBin *overlay, GtkWidget *widget, GdkRectangle *a
 
 gboolean button_press_cb(VteTerminal *vte, GdkEventButton *event, keybind_info *info) {
     if (info->config.clickable_url && event->type == GDK_BUTTON_PRESS) {
-        auto match = make_unique(check_match(vte, (int)event->x, (int)event->y), g_free);
+        auto match = make_unique(check_match(vte, event), g_free); 
         if (!match)
             return FALSE;
 
@@ -1425,16 +1432,10 @@ void get_vte_padding(VteTerminal *vte, int *left, int *top, int *right, int *bot
     *bottom = border.bottom;
 }
 
-char *check_match(VteTerminal *vte, int event_x, int event_y) {
-    int tag, padding_left, padding_top, padding_right, padding_bottom;
-    const long char_width = vte_terminal_get_char_width(vte);
-    const long char_height = vte_terminal_get_char_height(vte);
+char *check_match(VteTerminal *vte, GdkEventButton *event) {
+    int tag;
 
-    get_vte_padding(vte, &padding_left, &padding_top, &padding_right, &padding_bottom);
-    return vte_terminal_match_check(vte,
-                                    (event_x - padding_left) / char_width,
-                                    (event_y - padding_top) / char_height,
-                                    &tag);
+    return vte_terminal_match_check_event(vte, (GdkEvent*) event, &tag);
 }
 
 /* {{{ CONFIG LOADING */
@@ -1493,6 +1494,7 @@ static void load_theme(GtkWindow *window, VteTerminal *vte, GKeyFile *config, hi
             palette[i].blue = (((i & 4) ? 0xc000 : 0) + (i > 7 ? 0x3fff: 0)) / 65535.0;
             palette[i].green = (((i & 2) ? 0xc000 : 0) + (i > 7 ? 0x3fff : 0)) / 65535.0;
             palette[i].red = (((i & 1) ? 0xc000 : 0) + (i > 7 ? 0x3fff : 0)) / 65535.0;
+            palette[i].alpha = 0;
         } else if (i < 232) {
             const unsigned j = i - 16;
             const unsigned r = j / 36, g = (j / 6) % 6, b = j % 6;
@@ -1502,9 +1504,11 @@ static void load_theme(GtkWindow *window, VteTerminal *vte, GKeyFile *config, hi
             palette[i].red   = (red | red << 8) / 65535.0;
             palette[i].green = (green | green << 8) / 65535.0;
             palette[i].blue  = (blue | blue << 8) / 65535.0;
+            palette[i].alpha = 0;
         } else if (i < 256) {
             const unsigned shade = 8 + (i - 232) * 10;
             palette[i].red = palette[i].green = palette[i].blue = (shade | shade << 8) / 65535.0;
+            palette[i].alpha = 0;
         }
     }
 
@@ -1522,6 +1526,9 @@ static void load_theme(GtkWindow *window, VteTerminal *vte, GKeyFile *config, hi
     }
     if (auto color = get_config_color(config, "colors", "cursor")) {
         vte_terminal_set_color_cursor(vte, &*color);
+    }
+    if (auto color = get_config_color(config, "colors", "cursor_foreground")) {
+        vte_terminal_set_color_cursor_foreground(vte, &*color);
     }
     if (auto color = get_config_color(config, "colors", "highlight")) {
         vte_terminal_set_color_highlight(vte, &*color);
@@ -1587,7 +1594,7 @@ static void load_keybindings ( GKeyFile *config )
 }
 
 static void load_config(GtkWindow *window, VteTerminal *vte, config_info *info,
-                        char **geometry) {
+                        char **geometry, char **icon) {
     const std::string default_path = "/termite/config";
     GKeyFile *config = g_key_file_new();
 
@@ -1612,7 +1619,7 @@ static void load_config(GtkWindow *window, VteTerminal *vte, config_info *info,
     }
 
     if (loaded) {
-        set_config(window, vte, info, geometry, config);
+        set_config(window, vte, info, geometry, icon,config);
     }
     else {
         // We do want to load the default set.
@@ -1623,7 +1630,7 @@ static void load_config(GtkWindow *window, VteTerminal *vte, config_info *info,
 
 
 static void set_config(GtkWindow *window, VteTerminal *vte, config_info *info,
-                        char **geometry, GKeyFile *config) {
+                        char **geometry, char **icon, GKeyFile *config) {
     if (geometry) {
         if (auto s = get_config_string(config, "options", "geometry")) {
             *geometry = *s;
@@ -1648,8 +1655,7 @@ static void set_config(GtkWindow *window, VteTerminal *vte, config_info *info,
     info->filter_unmatched_urls = cfg_bool("filter_unmatched_urls", TRUE);
     info->modify_other_keys = cfg_bool("modify_other_keys", FALSE);
     info->fullscreen = cfg_bool("fullscreen", TRUE);
-    info->default_font_scale = vte_terminal_get_font_scale(vte);
-    info->hide_overlay = cfg_bool("hide_overlay", FALSE);
+    info->font_scale = vte_terminal_get_font_scale(vte);
 
     g_free(info->browser);
     info->browser = nullptr;
@@ -1665,13 +1671,12 @@ static void set_config(GtkWindow *window, VteTerminal *vte, config_info *info,
     }
 
     if (info->clickable_url) {
-        info->tag =
-            vte_terminal_match_add_gregex(vte,
-                                          g_regex_new(url_regex,
-                                                      G_REGEX_CASELESS,
-                                                      G_REGEX_MATCH_NOTEMPTY,
-                                                      nullptr),
-                                          (GRegexMatchFlags)0);
+        info->tag = vte_terminal_match_add_gregex(vte,
+            g_regex_new(url_regex,
+                        (GRegexCompileFlags)(G_REGEX_CASELESS | G_REGEX_MULTILINE),
+                        G_REGEX_MATCH_NOTEMPTY,
+                        nullptr),
+            (GRegexMatchFlags)0);
         vte_terminal_match_set_cursor_type(vte, info->tag, GDK_HAND2);
     } else if (info->tag != -1) {
         vte_terminal_match_remove(vte, info->tag);
@@ -1711,9 +1716,10 @@ static void set_config(GtkWindow *window, VteTerminal *vte, config_info *info,
         g_free(*s);
     }
 
-    if (auto s = get_config_string(config, "options", "icon_name")) {
-        gtk_window_set_icon_name(window, *s);
-        g_free(*s);
+    if (icon) {
+        if (auto s = get_config_string(config, "options", "icon_name")) {
+            *icon = *s;
+        }
     }
 
     if (info->size_hints) {
@@ -1736,11 +1742,11 @@ static void exit_with_success(VteTerminal *) {
 }
 
 static char *get_user_shell_with_fallback() {
-    if (char *command = vte_get_user_shell())
-        return command;
-
     if (const char *env = g_getenv("SHELL"))
         return g_strdup(env);
+
+    if (char *command = vte_get_user_shell())
+        return command;
 
     return g_strdup("/bin/sh");
 }
@@ -1763,7 +1769,7 @@ int main(int argc, char **argv) {
 
     GOptionContext *context = g_option_context_new(nullptr);
     char *role = nullptr, *geometry = nullptr, *execute = nullptr, *config_file = nullptr;
-    char *title = nullptr;
+    char *title = nullptr, *icon = nullptr;
     const GOptionEntry entries[] = {
         {"version", 'v', 0, G_OPTION_ARG_NONE, &version, "Version info", nullptr},
         {"exec", 'e', 0, G_OPTION_ARG_STRING, &execute, "Command to execute", "COMMAND"},
@@ -1773,6 +1779,7 @@ int main(int argc, char **argv) {
         {"geometry", 0, 0, G_OPTION_ARG_STRING, &geometry, "Window geometry", "GEOMETRY"},
         {"hold", 0, 0, G_OPTION_ARG_NONE, &hold, "Remain open after child process exits", nullptr},
         {"config", 'c', 0, G_OPTION_ARG_STRING, &config_file, "Path of config file", "CONFIG"},
+        {"icon", 'i', 0, G_OPTION_ARG_STRING, &icon, "Icon", "ICON"},
         {nullptr, 0, 0, G_OPTION_ARG_NONE, nullptr, nullptr, nullptr}
     };
     g_option_context_add_main_entries(context, entries, nullptr);
@@ -1780,8 +1787,11 @@ int main(int argc, char **argv) {
 
     if (!g_option_context_parse(context, &argc, &argv, &error)) {
         g_printerr("option parsing failed: %s\n", error->message);
+        g_clear_error (&error);
         return EXIT_FAILURE;
     }
+
+    g_option_context_free(context);
 
     if (version) {
         g_print("termite %s\n", PACKAGE_VERSION);
@@ -1849,10 +1859,11 @@ int main(int argc, char **argv) {
     };
     info.select.mode_ind.config = &(info.config);
 
-    load_config(GTK_WINDOW(window), vte, &info.config, geometry ? nullptr : &geometry);
+    load_config(GTK_WINDOW(window), vte, &info.config, geometry ? nullptr : &geometry,
+                icon ? nullptr : &icon);
 
     reload_config = [&]{
-        load_config(GTK_WINDOW(window), vte, &info.config, nullptr);
+        load_config(GTK_WINDOW(window), vte, &info.config, nullptr, nullptr);
     };
     signal(SIGUSR1, [](int){ reload_config(); });
 
@@ -1865,10 +1876,10 @@ int main(int argc, char **argv) {
     gtk_widget_set_valign(info.panel.da, GTK_ALIGN_FILL);
     gtk_overlay_add_overlay(GTK_OVERLAY(hint_overlay), info.panel.da);
 
-    gtk_widget_set_margin_top ( GTK_WIDGET(info.panel.entry), 5);
-    gtk_widget_set_margin_start ( GTK_WIDGET(info.panel.entry), 5);
-    gtk_widget_set_margin_end ( GTK_WIDGET(info.panel.entry), 5);
-    gtk_widget_set_margin_bottom ( GTK_WIDGET(info.panel.entry), 5);
+    gtk_widget_set_margin_start(info.panel.entry, 5);
+    gtk_widget_set_margin_end(info.panel.entry, 5);
+    gtk_widget_set_margin_top(info.panel.entry, 5);
+    gtk_widget_set_margin_bottom(info.panel.entry, 5);
     gtk_overlay_add_overlay(GTK_OVERLAY(panel_overlay), info.panel.entry);
 
 
@@ -1929,6 +1940,11 @@ int main(int argc, char **argv) {
             g_printerr("invalid geometry string: %s\n", geometry);
         }
         g_free(geometry);
+    }
+
+    if (icon) {
+        gtk_window_set_icon_name(GTK_WINDOW(window), icon);
+        g_free(icon);
     }
 
     gtk_widget_grab_focus(vte_widget);
