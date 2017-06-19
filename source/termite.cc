@@ -28,6 +28,7 @@
 #include <vector>
 #include <set>
 #include <string>
+#include <math.h>
 
 #include <gtk/gtk.h>
 #include <vte/vte.h>

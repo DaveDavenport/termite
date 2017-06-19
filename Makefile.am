@@ -13,7 +13,8 @@ LIBS=\
 AM_CXXFLAGS=\
 		  @gtk_CFLAGS@\
 		  @vte_CFLAGS@\
-		  @EXTRA_CFLAGS@
+		  @EXTRA_CFLAGS@\
+		  -Wno-deprecated-declarations
 
 termite_SOURCES=\
 				source/termite.cc\
